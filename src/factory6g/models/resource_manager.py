@@ -57,9 +57,19 @@ class StaticResourceManager(ResourceManager):
 
 
 class RoundRobinResourceManager(ResourceManager):
+    """Cyclic activation of ``num_active`` terminals at unit power.
+
+    The pointer is kept per operating point (keyed by Eb/N0 like the PF and
+    queue-aware state), so the pair sequence one Eb/N0 point sees does not depend
+    on how many other points are still open in the benchmark loop. A point seen
+    for the first time starts from a rotating offset, so a sweep of distinct
+    Eb/N0 values (dataset generation samples one per record) still rotates.
+    """
+
     def __init__(self, num_active: int = 1) -> None:
         self.num_active = max(1, int(num_active))
-        self._current_index = 0
+        self._index_by_state: dict[float, int] = {}
+        self._next_start_index = 0
 
     def get_runtime_directives(
         self,
@@ -68,10 +78,15 @@ class RoundRobinResourceManager(ResourceManager):
         feedback: ResourceManagerFeedback | None = None,
     ) -> ResourceDirectives:
         num_ut = _num_ut(config)
+        state_key = _state_key(ebno_db)
+        current_index = self._index_by_state.get(state_key)
+        if current_index is None:
+            current_index = self._next_start_index
+            self._next_start_index = (current_index + self.num_active) % num_ut
         mask = [0] * num_ut
         for offset in range(min(self.num_active, num_ut)):
-            mask[(self._current_index + offset) % num_ut] = 1
-        self._current_index = (self._current_index + self.num_active) % num_ut
+            mask[(current_index + offset) % num_ut] = 1
+        self._index_by_state[state_key] = (current_index + self.num_active) % num_ut
         return ResourceDirectives(active_ut_mask=mask)
 
 
