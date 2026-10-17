@@ -1,0 +1,203 @@
+{
+  "simulation": {
+    "gpu_id": 0,
+    "force_cpu": true,
+    "log_level": "INFO",
+    "seed": 42,
+    "output_dir": "results",
+    "plot_results": true
+  },
+  "monte_carlo": {
+    "batch_size": 32,
+    "min_batches": 100,
+    "max_batches": 1600,
+    "target_block_errors": 100,
+    "target_ber": null,
+    "stop_policy": "threshold",
+    "confidence_level": 0.95,
+    "min_total_bits": 1000000,
+    "ebno_min": 0.0,
+    "ebno_max": 30.0,
+    "ebno_step": 3.0,
+    "min_error_batches": 10
+  },
+  "estimators": {
+    "enabled": [
+      "adaptive"
+    ],
+    "kwargs": {
+      "adaptive": {
+        "quality_low": 3.0,
+        "quality_high": 12.0,
+        "blend_mid_weight": 0.5,
+        "dft_tap_ratio": 1.0,
+        "lmmse_r_freq": 0.98
+      },
+      "lmmse": {
+        "r_freq": 0.98,
+        "noise_bin_db": 0.5
+      },
+      "pso": {
+        "swarm_size": 8,
+        "iters": 12,
+        "early_stop_patience": 3,
+        "min_rel_improvement": 0.001
+      },
+      "ista": {
+        "num_iterations": 10,
+        "lambda_scale": 1.0,
+        "step_size": 0.5
+      },
+      "neural": {
+        "model_path": "models/neural_estimator_v2.keras",
+        "nn_err_var_scale": 0.5
+      }
+    }
+  },
+  "resource_managers": {
+    "enabled": [
+      "static",
+      "round_robin",
+      "max_throughput",
+      "pf",
+      "wmmse",
+      "queue_aware",
+      "drl",
+      "reliability_drl"
+    ],
+    "cnn_model_path": "models/cnn_resource_manager_1k.h5",
+    "drl_model_path": "models/drl_ppo_policy_v2",
+    "num_active_users": 2,
+    "kwargs": {
+      "wmmse": {
+        "iterations": 12,
+        "damping": 0.5
+      },
+      "queue_aware": {
+        "arrival_rate": 0.35,
+        "utility_weight": 0.2
+      },
+      "drl": {},
+      "reliability_drl": {
+        "model_path": "models/reliability_drl_ppo_policy_v2"
+      }
+    }
+  },
+  "factory_scenario": {
+    "room_dimensions": [
+      15.0,
+      15.0,
+      5.0
+    ],
+    "num_machines": 5,
+    "machine_size_range": [
+      [
+        0.5,
+        2.0
+      ],
+      [
+        0.5,
+        2.0
+      ],
+      [
+        0.5,
+        1.5
+      ]
+    ],
+    "materials": {
+      "metal": {
+        "name": "factory_metal",
+        "relative_permittivity": 1.0,
+        "conductivity": 10000000.0
+      },
+      "concrete": {
+        "name": "factory_concrete",
+        "relative_permittivity": 7.0,
+        "conductivity": 0.1
+      }
+    }
+  },
+  "system": {
+    "carrier_frequency": 3500000000.0,
+    "fft_size": 128,
+    "subcarrier_spacing": 30000.0,
+    "num_ofdm_symbols": 14,
+    "cyclic_prefix_length": 20,
+    "pilot_ofdm_symbol_indices": [
+      2,
+      11
+    ],
+    "num_bs_ant": 8,
+    "num_ut": 4,
+    "num_ut_ant": 1,
+    "num_bits_per_symbol": 2,
+    "coderate": 0.5,
+    "num_decoding_iter": 20,
+    "channel_model_type": "rayleigh",
+    "scenario": "umi",
+    "direction": "uplink",
+    "o2i_model": "low",
+    "enable_pathloss": false,
+    "enable_shadow_fading": false,
+    "min_ut_velocity": 0.0,
+    "max_ut_velocity": 0.0,
+    "ut_max_tx_power_dbm": 23.0,
+    "processing_budget_slots": 1.0,
+    "large_scale_model": "hall"
+  },
+  "jidd_scma": {
+    "polar_N": 256,
+    "polar_K": 128,
+    "construction_method": 0,
+    "design_snr_db": 0.0,
+    "sigma": 0.9,
+    "crc_size": 0,
+    "alpha": 0.6,
+    "iter_num": 5,
+    "is_interleaver": true,
+    "ebno_db_range": [
+      1,
+      20
+    ],
+    "ebno_db_step": 1,
+    "min_errors": 100,
+    "max_bits": 50000000,
+    "min_bits": 50000,
+    "ce_method": "mmse",
+    "mac_enabled": false,
+    "app_enabled": false,
+    "densities": [
+      "sparse",
+      "moderate",
+      "dense"
+    ],
+    "speeds_kmh": [
+      0,
+      3,
+      7,
+      10
+    ],
+    "carrier_frequencies_ghz": [
+      3.5,
+      28.0
+    ],
+    "raptor_q_K": 8
+  },
+  "ray_tracing": {
+    "max_depth": 5,
+    "samples_per_src": 10000,
+    "max_paths": 50
+  },
+  "transceiver": {
+    "tx_height_offset": 1.0,
+    "rx_height": 1.0,
+    "antenna_spacing": 0.5,
+    "tx_pattern": "tr38901",
+    "tx_polarization": "cross",
+    "rx_pattern": "iso",
+    "rx_polarization": "V",
+    "wall_thickness": 0.2,
+    "room_padding": 2.0,
+    "rx_boundary_padding": 1.0
+  }
+}

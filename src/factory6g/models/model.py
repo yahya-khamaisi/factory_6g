@@ -159,6 +159,31 @@ class Model:
             feedback=feedback,
         )
 
+    def estimate_feedback(self, batch_context: BatchContext) -> ResourceManagerFeedback:
+        """Scheduler feedback from this model's own estimator on the context's probe.
+
+        The probe carries the context's source bits and probe noise, so every
+        estimator asked for feedback on one context observes the same probe
+        (P1 holds across estimators, not only across schedulers).
+        """
+        probe_directives = self.default_directives()
+        x_probe, _, _ = self._transmitter.call(
+            batch_context.batch_size,
+            directives=probe_directives,
+            bits=batch_context.source_bits,
+        )
+        y_probe = (
+            self._channel.apply_frequency_response(x_probe, batch_context.h_freq)
+            + batch_context.probe_noise
+        )
+        if self.perfect_csi:
+            return ResourceManagerFeedback(
+                h_hat=batch_context.h_freq,
+                err_var=tf.zeros(tf.shape(batch_context.h_freq), dtype=batch_context.noise_variance.dtype),
+            )
+        h_hat, err_var = self._receiver.estimate_channel(y_probe, batch_context.noise_variance)
+        return ResourceManagerFeedback(h_hat=h_hat, err_var=err_var)
+
     def run_batch(
         self,
         batch_context: BatchContext,
@@ -190,12 +215,17 @@ class Model:
             runtime_latency_sec = processing_latency_sec + air_interface_latency_sec
             total_energy_joules = self._estimate_energy(runtime_latency_sec, air_interface_latency_sec, decoder_iter)
             noise_power = self._noise_power_value(batch_context.noise_variance)
+            tx_power_w = self._allocated_tx_power_w(active_directives)
+            latency_model_sec = self._modelled_latency_sec(air_interface_latency_sec)
             return {
                 "bits": bits.numpy(),
                 "bits_hat": bits_hat.numpy(),
                 "decoder_iterations": decoder_iter.numpy(),
                 "channel": batch_context.h_freq.numpy(),
                 "channel_hat": h_hat.numpy() if hasattr(h_hat, "numpy") else h_hat,
+                # Mean error variance the estimator reports to the equaliser,
+                # logged so it can be checked against the measured MSE.
+                "err_var_mean": float(np.mean(err_var.numpy() if hasattr(err_var, "numpy") else err_var)),
                 "qam": qam_symbols.numpy(),
                 "qam_hat": x_hat.numpy(),
                 "no_eff": no_eff.numpy(),
@@ -204,6 +234,9 @@ class Model:
                 "processing_latency_sec": processing_latency_sec,
                 "runtime_latency_sec": runtime_latency_sec,
                 "energy_joules": total_energy_joules,
+                "latency_model_sec": latency_model_sec,
+                "tx_power_w": tx_power_w,
+                "tx_energy_joules": tx_power_w * air_interface_latency_sec * batch_context.batch_size,
             }
 
         if self.perfect_csi:
@@ -223,6 +256,23 @@ class Model:
         symbol_duration = 1.0 / subcarrier_spacing
         cyclic_prefix_ratio = cyclic_prefix_length / max(fft_size, 1.0)
         return symbol_duration * (1.0 + cyclic_prefix_ratio) * num_ofdm_symbols
+
+    def _modelled_latency_sec(self, air_interface_latency_sec: float) -> float:
+        """One slot on the air plus a fixed receiver processing budget, in slots."""
+        budget_slots = float(self.config.get("processing_budget_slots", 1.0))
+        return air_interface_latency_sec * (1.0 + budget_slots)
+
+    def _allocated_tx_power_w(self, directives: ResourceDirectives) -> float:
+        """Total uplink transmit power implied by the resource directives.
+
+        Each terminal transmits at most the configured maximum output power; the
+        directives scale it by the power weight and switch it off when masked.
+        """
+        num_ut = int(self.config.get("num_ut", 8))
+        p_max_w = 10.0 ** ((float(self.config.get("ut_max_tx_power_dbm", 23.0)) - 30.0) / 10.0)
+        mask = np.ones(num_ut) if directives.active_ut_mask is None else np.asarray(directives.active_ut_mask, dtype=float)[:num_ut]
+        power = np.ones(num_ut) if directives.per_ut_power is None else np.asarray(directives.per_ut_power, dtype=float)[:num_ut]
+        return float(np.sum((mask > 0) * np.clip(power, 0.0, None)) * p_max_w)
 
     def _estimate_energy(
         self,

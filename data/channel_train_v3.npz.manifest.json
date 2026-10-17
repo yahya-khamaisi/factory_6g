@@ -1,0 +1,35 @@
+{
+  "chunks": [
+    "data/channel_train_v3.npz.chunk0.npz",
+    "data/channel_train_v3.npz.chunk1.npz",
+    "data/channel_train_v3.npz.chunk2.npz",
+    "data/channel_train_v3.npz.chunk3.npz",
+    "data/channel_train_v3.npz.chunk4.npz",
+    "data/channel_train_v3.npz.chunk5.npz",
+    "data/channel_train_v3.npz.chunk6.npz",
+    "data/channel_train_v3.npz.chunk7.npz",
+    "data/channel_train_v3.npz.chunk8.npz",
+    "data/channel_train_v3.npz.chunk9.npz"
+  ],
+  "total_samples": 204800,
+  "channel_types": [
+    "rayleigh",
+    "rician",
+    "raytraced",
+    "tr38901"
+  ],
+  "channel_batch_counts": {
+    "rayleigh": 48,
+    "rician": 27,
+    "raytraced": 20,
+    "tr38901": 5
+  },
+  "num_generation_batches": 100,
+  "batch_size": 64,
+  "ebno_db_range": [
+    0.0,
+    20.0
+  ],
+  "seed": 42,
+  "created_at_utc": "2026-10-13T11:45:53.353756+00:00"
+}

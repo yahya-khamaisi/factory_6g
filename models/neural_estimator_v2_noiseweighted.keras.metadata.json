@@ -1,0 +1,874 @@
+{
+  "model_path": "models/neural_estimator_v2_noiseweighted.keras",
+  "dataset_manifest": "data/channel_train_v4.npz.manifest.json",
+  "dataset": {
+    "total_samples": 204800,
+    "channel_types": [
+      "rayleigh",
+      "rician",
+      "raytraced",
+      "tr38901"
+    ],
+    "channel_batch_counts": {
+      "rayleigh": 48,
+      "rician": 27,
+      "raytraced": 20,
+      "tr38901": 5
+    },
+    "num_generation_batches": 100,
+    "batch_size": 64,
+    "ebno_db_range": [
+      0.0,
+      30.0
+    ],
+    "seed": 42,
+    "created_at_utc": "2026-10-14T18:39:28.757596+00:00"
+  },
+  "split": {
+    "rule": "sample index mod 10: 0-7 train, 8 validation, 9 test",
+    "counts": {
+      "train": 163840,
+      "val": 20480,
+      "test": 20480
+    }
+  },
+  "training": {
+    "optimizer": "Adam",
+    "initial_learning_rate": 0.001,
+    "batch_size": 256,
+    "loss_weighting": "noise",
+    "max_epochs": 20,
+    "epochs_run": 20,
+    "best_val_loss": 0.0005416992353275418,
+    "seed": 42
+  },
+  "conditioning": {
+    "input": "ls_energy_effective_ebno",
+    "range_db": [
+      -30.0,
+      45.0
+    ]
+  },
+  "test_nmse": [
+    {
+      "channel": "all",
+      "ebno_band_db": "all",
+      "num_grids": 20480,
+      "nmse_ls_db": -13.190715246793744,
+      "nmse_neural_db": -17.436415756990787
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        0.0,
+        7.5
+      ],
+      "num_grids": 5735,
+      "nmse_ls_db": -8.34142018139461,
+      "nmse_neural_db": -12.527970627109779
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        7.5,
+        15.0
+      ],
+      "num_grids": 5530,
+      "nmse_ls_db": -15.76276613306243,
+      "nmse_neural_db": -20.266201298638563
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        15.0,
+        22.5
+      ],
+      "num_grids": 4711,
+      "nmse_ls_db": -22.066144770871098,
+      "nmse_neural_db": -26.791434760064416
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        22.5,
+        30.0
+      ],
+      "num_grids": 4504,
+      "nmse_ls_db": -30.093864632519715,
+      "nmse_neural_db": -34.64022996957865
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": "all",
+      "num_grids": 9831,
+      "nmse_ls_db": -12.95674200266522,
+      "nmse_neural_db": -17.151808588417108
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        0.0,
+        7.5
+      ],
+      "num_grids": 2662,
+      "nmse_ls_db": -8.82284943046082,
+      "nmse_neural_db": -12.961537733781675
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        7.5,
+        15.0
+      ],
+      "num_grids": 2458,
+      "nmse_ls_db": -15.160792969317585,
+      "nmse_neural_db": -19.598688806918197
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        15.0,
+        22.5
+      ],
+      "num_grids": 2867,
+      "nmse_ls_db": -21.091577542549583,
+      "nmse_neural_db": -25.566353089563826
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        22.5,
+        30.0
+      ],
+      "num_grids": 1844,
+      "nmse_ls_db": -31.964894594053007,
+      "nmse_neural_db": -35.87017676930904
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": "all",
+      "num_grids": 5530,
+      "nmse_ls_db": -13.188052943230629,
+      "nmse_neural_db": -17.531347069485946
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        0.0,
+        7.5
+      ],
+      "num_grids": 1434,
+      "nmse_ls_db": -7.2721255824034685,
+      "nmse_neural_db": -11.572734371507176
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        7.5,
+        15.0
+      ],
+      "num_grids": 1844,
+      "nmse_ls_db": -17.89495358801193,
+      "nmse_neural_db": -22.47723652665323
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        15.0,
+        22.5
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -22.090871796409047,
+      "nmse_neural_db": -26.698509204305875
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        22.5,
+        30.0
+      ],
+      "num_grids": 1023,
+      "nmse_ls_db": -32.96830484953914,
+      "nmse_neural_db": -37.128004495807325
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": "all",
+      "num_grids": 4095,
+      "nmse_ls_db": -13.665764199208581,
+      "nmse_neural_db": -17.82135984306828
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        0.0,
+        7.5
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -8.696742928368458,
+      "nmse_neural_db": -12.798462932401984
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        7.5,
+        15.0
+      ],
+      "num_grids": 1228,
+      "nmse_ls_db": -11.27948451482309,
+      "nmse_neural_db": -15.821805833664019
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        15.0,
+        22.5
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -30.980197813658986,
+      "nmse_neural_db": -34.85064743071416
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        22.5,
+        30.0
+      ],
+      "num_grids": 1228,
+      "nmse_ls_db": -31.671488923380686,
+      "nmse_neural_db": -35.60276325256102
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": "all",
+      "num_grids": 1024,
+      "nmse_ls_db": -12.847840956684973,
+      "nmse_neural_db": -17.339060398807593
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        0.0,
+        7.5
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -9.127421996706683,
+      "nmse_neural_db": -13.334427424211679
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        15.0,
+        22.5
+      ],
+      "num_grids": 205,
+      "nmse_ls_db": -17.109792477507458,
+      "nmse_neural_db": -22.70355442642899
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        22.5,
+        30.0
+      ],
+      "num_grids": 409,
+      "nmse_ls_db": -18.60729727707938,
+      "nmse_neural_db": -24.256667461764494
+    }
+  ],
+  "test_nmse_fine": [
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 3482,
+      "nmse_ls_db": -7.683788386103871,
+      "nmse_neural_db": -11.834129511812785
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 3891,
+      "nmse_ls_db": -10.501255868559706,
+      "nmse_neural_db": -14.859837138292741
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 3892,
+      "nmse_ls_db": -17.65659558906696,
+      "nmse_neural_db": -22.186874858445176
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 3071,
+      "nmse_ls_db": -20.603309036506445,
+      "nmse_neural_db": -25.406770512993493
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        20.0,
+        25.0
+      ],
+      "num_grids": 2664,
+      "nmse_ls_db": -28.313927919006172,
+      "nmse_neural_db": -32.502468877567125
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        25.0,
+        30.0
+      ],
+      "num_grids": 3480,
+      "nmse_ls_db": -29.635071750586942,
+      "nmse_neural_db": -34.40502798458748
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 1433,
+      "nmse_ls_db": -6.712584024340275,
+      "nmse_neural_db": -10.801135276879084
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 2049,
+      "nmse_ls_db": -11.470452945341592,
+      "nmse_neural_db": -15.774599632407156
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 1638,
+      "nmse_ls_db": -17.38067554458951,
+      "nmse_neural_db": -21.83497284582105
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 1637,
+      "nmse_ls_db": -20.737614808385977,
+      "nmse_neural_db": -25.230911661249024
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        20.0,
+        25.0
+      ],
+      "num_grids": 1435,
+      "nmse_ls_db": -22.344673041586233,
+      "nmse_neural_db": -26.74806040881372
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        25.0,
+        30.0
+      ],
+      "num_grids": 1639,
+      "nmse_ls_db": -32.69241420125423,
+      "nmse_neural_db": -36.5171116203233
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -7.182750599721018,
+      "nmse_neural_db": -11.480247935637585
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 614,
+      "nmse_ls_db": -12.34619260190913,
+      "nmse_neural_db": -16.796954165034947
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 1435,
+      "nmse_ls_db": -18.983589251728823,
+      "nmse_neural_db": -23.572398972557288
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -22.090871796409047,
+      "nmse_neural_db": -26.698509204305875
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        20.0,
+        25.0
+      ],
+      "num_grids": 205,
+      "nmse_ls_db": -27.011895628890837,
+      "nmse_neural_db": -31.353760489117622
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        25.0,
+        30.0
+      ],
+      "num_grids": 818,
+      "nmse_ls_db": -34.95312401987891,
+      "nmse_neural_db": -38.97648946833001
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 820,
+      "nmse_ls_db": -9.492357557690157,
+      "nmse_neural_db": -13.489030148640598
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 818,
+      "nmse_ls_db": -3.3371462008470543,
+      "nmse_neural_db": -7.867569333314136
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 819,
+      "nmse_ls_db": -13.824951798876036,
+      "nmse_neural_db": -18.42196673495416
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        20.0,
+        25.0
+      ],
+      "num_grids": 1024,
+      "nmse_ls_db": -31.811895316967455,
+      "nmse_neural_db": -35.654494339921364
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        25.0,
+        30.0
+      ],
+      "num_grids": 614,
+      "nmse_ls_db": -28.86218494035049,
+      "nmse_neural_db": -33.042998912660664
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -9.127421996706683,
+      "nmse_neural_db": -13.334427424211679
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 205,
+      "nmse_ls_db": -17.109792477507458,
+      "nmse_neural_db": -22.70355442642899
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        25.0,
+        30.0
+      ],
+      "num_grids": 409,
+      "nmse_ls_db": -18.60729727707938,
+      "nmse_neural_db": -24.256667461764494
+    }
+  ],
+  "test_nmse_by_cond": [
+    {
+      "channel": "all",
+      "cond_band_db": [
+        -30.0,
+        -10.0
+      ],
+      "num_grids": 243,
+      "nmse_ls_db": 7.9429593817228685,
+      "nmse_neural_db": 3.292447954738678
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        -10.0,
+        0.0
+      ],
+      "num_grids": 3461,
+      "nmse_ls_db": -1.8830258042241863,
+      "nmse_neural_db": -6.1614355993208845
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        0.0,
+        10.0
+      ],
+      "num_grids": 6299,
+      "nmse_ls_db": -10.327207092094019,
+      "nmse_neural_db": -14.47223449738573
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        10.0,
+        20.0
+      ],
+      "num_grids": 6507,
+      "nmse_ls_db": -18.391607135587044,
+      "nmse_neural_db": -22.677965424619806
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        20.0,
+        30.0
+      ],
+      "num_grids": 3010,
+      "nmse_ls_db": -26.36652104363653,
+      "nmse_neural_db": -31.446597196693034
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        30.0,
+        35.0
+      ],
+      "num_grids": 840,
+      "nmse_ls_db": -36.2404974589322,
+      "nmse_neural_db": -39.514851006728186
+    },
+    {
+      "channel": "all",
+      "cond_band_db": [
+        35.0,
+        45.0
+      ],
+      "num_grids": 120,
+      "nmse_ls_db": -42.544489583339725,
+      "nmse_neural_db": -43.295677172366105
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        -30.0,
+        -10.0
+      ],
+      "num_grids": 1,
+      "nmse_ls_db": 14.08171723459258,
+      "nmse_neural_db": 9.339450498610157
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        -10.0,
+        0.0
+      ],
+      "num_grids": 1341,
+      "nmse_ls_db": -2.163368768442352,
+      "nmse_neural_db": -6.431996211958003
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        0.0,
+        10.0
+      ],
+      "num_grids": 3329,
+      "nmse_ls_db": -9.530802871490907,
+      "nmse_neural_db": -13.665466225854544
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        10.0,
+        20.0
+      ],
+      "num_grids": 3498,
+      "nmse_ls_db": -19.08690690569355,
+      "nmse_neural_db": -23.32992600782934
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        20.0,
+        30.0
+      ],
+      "num_grids": 1361,
+      "nmse_ls_db": -26.75287885049906,
+      "nmse_neural_db": -31.039342488933116
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        30.0,
+        35.0
+      ],
+      "num_grids": 202,
+      "nmse_ls_db": -36.88224638019554,
+      "nmse_neural_db": -40.33390241403864
+    },
+    {
+      "channel": "rayleigh",
+      "cond_band_db": [
+        35.0,
+        45.0
+      ],
+      "num_grids": 99,
+      "nmse_ls_db": -43.01162313289001,
+      "nmse_neural_db": -43.07248486994429
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        -30.0,
+        -10.0
+      ],
+      "num_grids": 133,
+      "nmse_ls_db": 7.7940132665926924,
+      "nmse_neural_db": 3.208713736524595
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        -10.0,
+        0.0
+      ],
+      "num_grids": 898,
+      "nmse_ls_db": -1.2816532023212903,
+      "nmse_neural_db": -5.626534158105172
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        0.0,
+        10.0
+      ],
+      "num_grids": 1739,
+      "nmse_ls_db": -10.88081063962342,
+      "nmse_neural_db": -15.120171042530036
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        10.0,
+        20.0
+      ],
+      "num_grids": 1587,
+      "nmse_ls_db": -17.898996503873622,
+      "nmse_neural_db": -22.452436391604117
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        20.0,
+        30.0
+      ],
+      "num_grids": 926,
+      "nmse_ls_db": -30.256319012868545,
+      "nmse_neural_db": -34.36786807553732
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        30.0,
+        35.0
+      ],
+      "num_grids": 226,
+      "nmse_ls_db": -36.958951844626256,
+      "nmse_neural_db": -40.878292871727524
+    },
+    {
+      "channel": "rician",
+      "cond_band_db": [
+        35.0,
+        45.0
+      ],
+      "num_grids": 21,
+      "nmse_ls_db": -41.100024359672,
+      "nmse_neural_db": -44.286825173479976
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        -30.0,
+        -10.0
+      ],
+      "num_grids": 102,
+      "nmse_ls_db": 8.885940242887836,
+      "nmse_neural_db": 3.893413156405234
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        -10.0,
+        0.0
+      ],
+      "num_grids": 1106,
+      "nmse_ls_db": -2.067415350543638,
+      "nmse_neural_db": -6.298860723951208
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        0.0,
+        10.0
+      ],
+      "num_grids": 941,
+      "nmse_ls_db": -11.658723624846235,
+      "nmse_neural_db": -15.613232125732273
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        10.0,
+        20.0
+      ],
+      "num_grids": 1127,
+      "nmse_ls_db": -17.456793312371367,
+      "nmse_neural_db": -21.394436185237883
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        20.0,
+        30.0
+      ],
+      "num_grids": 409,
+      "nmse_ls_db": -28.403665515950394,
+      "nmse_neural_db": -32.665472932197176
+    },
+    {
+      "channel": "raytraced",
+      "cond_band_db": [
+        30.0,
+        35.0
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -35.976536646826204,
+      "nmse_neural_db": -38.97264638959666
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        -30.0,
+        -10.0
+      ],
+      "num_grids": 7,
+      "nmse_ls_db": 6.277160049468989,
+      "nmse_neural_db": 1.4990671094090606
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        -10.0,
+        0.0
+      ],
+      "num_grids": 116,
+      "nmse_ls_db": -2.4017464347037327,
+      "nmse_neural_db": -6.561867775681462
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        0.0,
+        10.0
+      ],
+      "num_grids": 290,
+      "nmse_ls_db": -9.684074163752625,
+      "nmse_neural_db": -13.894950410231754
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        10.0,
+        20.0
+      ],
+      "num_grids": 295,
+      "nmse_ls_db": -15.918388191624596,
+      "nmse_neural_db": -20.55535611724857
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        20.0,
+        30.0
+      ],
+      "num_grids": 314,
+      "nmse_ls_db": -18.257486451862764,
+      "nmse_neural_db": -24.640021268116744
+    },
+    {
+      "channel": "tr38901",
+      "cond_band_db": [
+        30.0,
+        35.0
+      ],
+      "num_grids": 2,
+      "nmse_ls_db": -23.1759293852572,
+      "nmse_neural_db": -30.198898598415763
+    }
+  ],
+  "created_at_utc": "2026-10-15T02:31:11.551602+00:00"
+}

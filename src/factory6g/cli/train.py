@@ -34,9 +34,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--step",
-        choices=["generate", "train", "all"],
+        choices=["generate", "train", "all", "evaluate"],
         default="all",
-        help="Which step to run: 'generate' data, 'train' network, or 'all' (default).",
+        help=(
+            "Which step to run: 'generate' data, 'train' network, 'all' (default), or "
+            "'evaluate' an existing --output model on the dataset's test split."
+        ),
     )
     parser.add_argument(
         "--data",
@@ -79,10 +82,31 @@ def _parse_args() -> argparse.Namespace:
         help="Maximum Eb/No (dB) for dataset generation (default: 20.0).",
     )
     parser.add_argument(
+        "--gen-batch-size",
+        type=int,
+        default=64,
+        help="Slots simulated per generation batch (default: 64).",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Random seed for dataset generation and weight initialisation. "
+            "Default: simulation.seed from the config file."
+        ),
+    )
+    parser.add_argument(
+        "--loss-weighting",
+        choices=["none", "noise"],
+        default="none",
+        help="Per-grid loss weight: 'none' (plain MSE) or 'noise' (1/sigma_n^2, so every Eb/No counts).",
+    )
+    parser.add_argument(
         "--channel-types",
         nargs="+",
         default=["tr38901"],
-        choices=["rayleigh", "rician", "tr38901"],
+        choices=["rayleigh", "rician", "tr38901", "raytraced"],
         help=(
             "Channel models for curriculum training, ordered easy → hard. "
             "Multiple values apply a curriculum schedule: first third uses only "
@@ -102,6 +126,25 @@ def _load_flat_config(config_path: str) -> dict:
         if isinstance(section, dict):
             flat.update(section)
     return flat
+
+
+def _seed_everything(seed: int) -> None:
+    """Seed every generator the training pipeline draws from.
+
+    Mirrors factory6g.cli.run so that a dataset and a set of weights can be
+    regenerated from a seed, the way a simulation campaign can.
+    """
+    import random
+
+    import numpy as np
+    # sionna.phy is not exposed by importing the top-level package alone.
+    import sionna.phy
+    import tensorflow as tf
+
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    sionna.phy.config.seed = seed
 
 
 def main() -> int:
@@ -127,6 +170,10 @@ def main() -> int:
     Path(args.data).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
+    seed = args.seed if args.seed is not None else int(flat_config.get("seed", 42))
+    _seed_everything(seed)
+    logging.info("Seeded Python, NumPy, TensorFlow and Sionna with %d.", seed)
+
     from factory6g.training.train_estimator import generate_dataset, train
 
     if args.step in {"generate", "all"}:
@@ -137,6 +184,8 @@ def main() -> int:
             num_batches=args.batches,
             ebno_db_range=(args.ebno_min, args.ebno_max),
             channel_types=args.channel_types,
+            seed=seed,
+            batch_size=args.gen_batch_size,
         )
 
     if args.step in {"train", "all"}:
@@ -146,7 +195,15 @@ def main() -> int:
             model_output_path=args.output,
             epochs=args.epochs,
             batch_size=args.batch_size,
+            seed=seed,
+            loss_weighting=args.loss_weighting,
         )
+
+    if args.step == "evaluate":
+        from factory6g.training.train_estimator import evaluate
+
+        logging.info("=== Evaluating %s on the test split of %s ===", args.output, args.data)
+        evaluate(dataset_path=args.data, model_path=args.output, batch_size=args.batch_size)
 
     logging.info("Done.")
     return 0

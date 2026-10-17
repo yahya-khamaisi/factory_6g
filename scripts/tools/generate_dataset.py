@@ -32,7 +32,7 @@ def _preprocess_channel_for_cnn(h_hat: tf.Tensor) -> np.ndarray:
     return channel_energy[0].numpy().astype(np.float32)
 
 
-_VALID_CHANNELS = {"tr38901", "rayleigh", "rician", "awgn"}
+_VALID_CHANNELS = {"tr38901", "rayleigh", "rician", "raytraced", "awgn"}
 _BER_FIRST_SOURCE_PRIORITY = {
     "max_throughput": 0,
     "wmmse": 1,

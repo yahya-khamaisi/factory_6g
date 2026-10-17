@@ -37,7 +37,10 @@ def test_select_quality_branch_covers_all_ranges():
 
 
 def test_adaptive_estimator_shape_dtype_and_branch_selection():
-    estimator = AdaptiveHybridChannelEstimator(_tiny_resource_grid(), quality_low=3.0, quality_high=12.0)
+    # Single-branch (v1) rule; the per-terminal rule is tested in test_estimator_v2.py.
+    estimator = AdaptiveHybridChannelEstimator(
+        _tiny_resource_grid(), quality_low=3.0, quality_high=12.0, per_terminal_branch=False
+    )
     h_ls = tf.complex(tf.ones([1, 1, 1, 1, 1, 4, 16], dtype=tf.float32), tf.zeros([1, 1, 1, 1, 1, 4, 16]))
     err_var_ls = tf.ones([1, 1, 1, 1, 1, 4, 16], dtype=tf.float32)
 

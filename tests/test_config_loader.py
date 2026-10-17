@@ -50,10 +50,19 @@ def test_simulation_targets_are_rejected(tmp_path):
 
 def test_non_5g_radio_preset_values_are_rejected(tmp_path):
     config_data = make_tiny_config(str(tmp_path / "results"))
-    config_data["system"]["channel_model_type"] = "rayleigh"
+    # Subcarrier spacing is part of the locked 5G NR numerology.
+    config_data["system"]["subcarrier_spacing"] = 15000.0
     config_path = write_config(tmp_path, config_data)
     with pytest.raises(ConfigError):
         load_config(config_path)
+
+
+def test_supported_channel_models_are_accepted(tmp_path):
+    for channel in ("rayleigh", "rician", "tr38901"):
+        config_data = make_tiny_config(str(tmp_path / f"results_{channel}"))
+        config_data["system"]["channel_model_type"] = channel
+        config_path = write_config(tmp_path, config_data)
+        assert load_config(config_path).system.channel_model_type == channel
 
 
 def test_non_5g_tx_pattern_is_rejected(tmp_path):

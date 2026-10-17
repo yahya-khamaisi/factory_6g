@@ -5,7 +5,10 @@ services:
     image: factory6g:latest
     volumes:
       - ./results:/app/results
-      - ./config/config.json:/app/config/config.json:ro
+      - ./config:/app/config:ro      # config.json plus the per-run configs (config_run_*.json)
+      - ./data:/app/data:ro          # ray-traced channel bank
+      - ./models:/app/models:ro      # trained checkpoints, without rebuilding the image
+      - ./src:/app/src:ro            # live package source, as every locked run used
 
   simulation-gpu:      # GPU-accelerated (set force_cpu: false in config/config.json)
     build: .
@@ -36,7 +39,8 @@ services:
     volumes:
       - ./models:/app/models          # trained weights persist on host
       - ./data:/app/data              # generated dataset persists on host
-      - ./config/config.json:/app/config/config.json:ro
+      - ./config:/app/config:ro
+      - ./src:/app/src:ro             # live package source, as the simulation service
     entrypoint: ["python", "-m", "factory6g.cli.train"]
     command: ["--data", "data/channel_train.npz", "--output", "models/neural_estimator.keras"]
 

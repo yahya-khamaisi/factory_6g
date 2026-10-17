@@ -42,8 +42,10 @@ def test_main_cli_runs_fixed_flow_without_plots(tmp_path):
     assert not png_files, "plot_results=False should not generate PNG plots."
     log_text = log_files[0].read_text(encoding="utf-8")
     assert log_text.strip(), "Run log file must not be empty."
-    assert "Starting execution for fixed flow: estimators -> resource_managers" in log_text
-    assert "Stage order: estimators -> resource_managers" in log_text
+    # The flow announces its fixed stage order (P3) before running.
+    assert "Stages: estimators -> resource_managers" in log_text
+    assert "[estimators] Done" in log_text
+    assert "[resource_managers] Done" in log_text
 
     stage_payload = json.loads(stage_json_files[0].read_text(encoding="utf-8"))
     assert {
@@ -90,4 +92,6 @@ def test_main_cli_generates_required_stage_plots(tmp_path):
         "runtime_by_method.png",
     ]
     for filename in required:
-        assert len(list(output_dir.rglob(filename))) == 2, f"Expected two stage plots for {filename}."
+        # One plot per stage directory plus one per stage in overview/.
+        stage_plots = [p for p in output_dir.rglob(filename) if "overview" not in p.parts]
+        assert len(stage_plots) == 2, f"Expected two stage plots for {filename}."

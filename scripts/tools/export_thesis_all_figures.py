@@ -18,11 +18,13 @@ from factory6g.visualization.thesis_extension_figures import (
     export_single_json_ber,
     export_single_json_sweeps,
     plot_ch04_ber_heatmap,
+    plot_coupled_ber_heatmap,
     plot_multi_panel_ber,
     plot_multi_panel_metric,
     plot_rm_pareto,
     plot_runtime_bar,
     scan_results_inventory,
+    write_ce_matrix_table,
     write_exploratory_anchor_table,
     write_run_inventory_tables,
 )
@@ -97,6 +99,7 @@ def export_manifest(manifest_path: Path, *, project_root: Path, skip_tables: boo
                 output_path=out_dir / entry["output"],
                 supertitle=entry.get("supertitle"),
                 methods_filter=entry.get("methods_filter"),
+                ncols=entry.get("ncols"),
             )
             continue
 
@@ -115,6 +118,22 @@ def export_manifest(manifest_path: Path, *, project_root: Path, skip_tables: boo
                 output_path=out_dir / entry["output"],
                 supertitle=entry.get("supertitle"),
                 methods_filter=entry.get("methods_filter"),
+                ncols=entry.get("ncols"),
+            )
+            continue
+
+        if entry_type == "coupled_ber_heatmap":
+            panels = [
+                {**panel, "source": str(_resolve(panel["source"], project_root))}
+                for panel in entry["panels"]
+            ]
+            for panel in panels:
+                if not Path(panel["source"]).exists():
+                    raise FileNotFoundError(f"[{entry_id}] missing {panel['source']}")
+            plot_coupled_ber_heatmap(
+                panels=panels,
+                ebno_db=float(entry.get("ebno_db", 0.0)),
+                output_path=out_dir / entry["output"],
             )
             continue
 
@@ -141,11 +160,27 @@ def export_manifest(manifest_path: Path, *, project_root: Path, skip_tables: boo
             note=spec.get("note", ""),
         )
 
+    if "ch04_ce_matrix" in tables:
+        spec = tables["ch04_ce_matrix"]
+        write_ce_matrix_table(
+            panels=[
+                {**panel, "source": str(_resolve(panel["source"], project_root))}
+                for panel in spec["panels"]
+            ],
+            ber_ebno_db=spec["ber_ebno_db"],
+            nmse_ebno_db=spec["nmse_ebno_db"],
+            calibration_ebno_db=float(spec["calibration_ebno_db"]),
+            output_path=_resolve(spec["output"], project_root),
+            caption=spec["caption"],
+            note=spec.get("note", ""),
+        )
+
     inventory = scan_results_inventory(project_root / "results")
     write_run_inventory_tables(
         inventory=inventory,
         output_path=generated_dir / "appendix_b_inventory.tex",
         cleanup=manifest.get("cleanup", {}),
+        roles=manifest.get("run_roles", {}),
     )
 
 

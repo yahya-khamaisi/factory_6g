@@ -19,6 +19,7 @@ from factory6g.visualization.thesis_plot_style import (
     order_methods_dict,
     style_ebno_axis,
     THESIS_FIGSIZE,
+    THESIS_FIGSIZE_LEGEND,
     THESIS_DPI,
 )
 
@@ -235,8 +236,8 @@ def write_overview_plots(
             plt=plt,
             methods=merged_methods,
             ebno_range=ebno_range,
-            metric="latency_ms",
-            ylabel="Latency (ms)",
+            metric="latency_model_ms",
+            ylabel="Modelled latency (ms)",
             title=f"{title_base}: Latency vs Eb/No",
             output_path=overview_dir / "latency_vs_ebno.png",
             stage_hint=stage_name,
@@ -255,10 +256,20 @@ def write_overview_plots(
             plt=plt,
             methods=merged_methods,
             ebno_range=ebno_range,
-            metric="avg_power_w",
-            ylabel="Average Power (W)",
+            metric="tx_power_w",
+            ylabel="Allocated transmit power (W)",
             title=f"{title_base}: Power vs Eb/No",
             output_path=overview_dir / "power_vs_ebno.png",
+            stage_hint=stage_name,
+        )
+        _plot_metric_vs_ebno(
+            plt=plt,
+            methods=merged_methods,
+            ebno_range=ebno_range,
+            metric="jain_fairness",
+            ylabel="Jain's fairness index",
+            title=f"{title_base}: Fairness vs Eb/No",
+            output_path=overview_dir / "fairness_vs_ebno.png",
             stage_hint=stage_name,
         )
 
@@ -310,8 +321,8 @@ def _write_stage_plots(*, stage_dir: Path, payload: dict[str, Any]) -> None:
         plt=plt,
         methods=methods,
         ebno_range=ebno_range,
-        metric="latency_ms",
-        ylabel="Latency (ms)",
+        metric="latency_model_ms",
+        ylabel="Modelled latency (ms)",
         title=f"{stage_name}: Latency vs Eb/No",
         output_path=stage_dir / "latency_vs_ebno.png",
         stage_hint=stage_key,
@@ -330,10 +341,20 @@ def _write_stage_plots(*, stage_dir: Path, payload: dict[str, Any]) -> None:
         plt=plt,
         methods=methods,
         ebno_range=ebno_range,
-        metric="avg_power_w",
-        ylabel="Average Power (W)",
+        metric="tx_power_w",
+        ylabel="Allocated transmit power (W)",
         title=f"{stage_name}: Power vs Eb/No",
         output_path=stage_dir / "power_vs_ebno.png",
+        stage_hint=stage_key,
+    )
+    _plot_metric_vs_ebno(
+        plt=plt,
+        methods=methods,
+        ebno_range=ebno_range,
+        metric="jain_fairness",
+        ylabel="Jain's fairness index",
+        title=f"{stage_name}: Fairness vs Eb/No",
+        output_path=stage_dir / "fairness_vs_ebno.png",
         stage_hint=stage_key,
     )
 
@@ -350,6 +371,9 @@ def _write_stage_plots(*, stage_dir: Path, payload: dict[str, Any]) -> None:
     plt.close(fig_runtime)
 
 
+EXPERIMENTAL_METHODS = frozenset({"pso", "ista"})
+
+
 def _plot_ber_publication(
     *,
     plt,
@@ -360,9 +384,13 @@ def _plot_ber_publication(
     stage_hint: str | None = None,
 ) -> None:
     apply_thesis_rcparams(plt)
-    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE)
+    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE_LEGEND)
     x = np.asarray(ebno_range, dtype=float)
     ordered = order_methods_dict(methods, stage_hint=stage_hint)
+    # Experimental estimators stay out of the headline plot when canonical
+    # methods are present; the raw plot still shows them.
+    if any(name not in EXPERIMENTAL_METHODS for name in ordered):
+        ordered = {k: v for k, v in ordered.items() if k not in EXPERIMENTAL_METHODS}
     for name, metric_map in ordered.items():
         if "ber" not in metric_map:
             continue
@@ -400,7 +428,7 @@ def _plot_ber_publication(
             )
 
     style_ebno_axis(ax, ylabel="BER", title=title)
-    ax.legend()
+    _place_legend(ax, len(ordered))
     # Place outside axes so the note does not collide with y-tick labels.
     fig.text(
         0.5,
@@ -425,7 +453,7 @@ def _plot_ber_raw(
     stage_hint: str | None = None,
 ) -> None:
     apply_thesis_rcparams(plt)
-    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE)
+    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE_LEGEND)
     x = np.asarray(ebno_range, dtype=float)
     ordered = order_methods_dict(methods, stage_hint=stage_hint)
 
@@ -433,6 +461,8 @@ def _plot_ber_raw(
         if "ber" not in metric_map:
             continue
         values = _coerce_float_array(metric_map["ber"])
+        # A zero BER has no place on a log axis; leave a gap instead of clipping.
+        values = np.where(values > 0, values, np.nan)
         ax.semilogy(
             x,
             values,
@@ -443,7 +473,7 @@ def _plot_ber_raw(
         )
 
     style_ebno_axis(ax, ylabel="BER", title=title)
-    ax.legend()
+    _place_legend(ax, len(ordered))
     fig.tight_layout()
     fig.savefig(output_path, dpi=THESIS_DPI)
     plt.close(fig)
@@ -461,7 +491,7 @@ def _plot_metric_vs_ebno(
     stage_hint: str | None = None,
 ) -> None:
     apply_thesis_rcparams(plt)
-    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE)
+    fig, ax = plt.subplots(1, 1, figsize=THESIS_FIGSIZE_LEGEND)
     ordered = order_methods_dict(methods, stage_hint=stage_hint)
     for name, metric_map in ordered.items():
         if metric not in metric_map:
@@ -476,7 +506,7 @@ def _plot_metric_vs_ebno(
             linewidth=1.8,
         )
     style_ebno_axis(ax, ylabel=ylabel, title=title)
-    ax.legend()
+    _place_legend(ax, len(ordered))
     fig.tight_layout()
     fig.savefig(output_path, dpi=THESIS_DPI)
     plt.close(fig)
@@ -499,6 +529,24 @@ def _point_status_array(metric_map: dict[str, list[Any]], *, fallback_len: int) 
             dtype=object,
         )
     return np.asarray([POINT_STATUS_RESOLVED] * fallback_len, dtype=object)
+
+
+def _place_legend(ax, n_entries: int) -> None:
+    """Put the legend beside the axes rather than on top of the curves.
+
+    With eight schedulers the default in-axes legend covers the right half of a
+    BER sweep, including the x-tick labels. Placing it outside keeps every
+    marker and both axes readable at print size.
+    """
+    ncol = 1 if n_entries <= 9 else 2
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        frameon=False,
+        ncol=ncol,
+        fontsize=9,
+    )
 
 
 def _coerce_float_array(values: list[Any]) -> np.ndarray:

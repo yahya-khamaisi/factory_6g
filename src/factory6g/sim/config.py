@@ -226,6 +226,11 @@ class MonteCarloConfig:
     ebno_min: float
     ebno_max: float
     ebno_step: float
+    # Distinct batches that must contain bit errors before a point may close on
+    # its block-error target or count as resolved. With persistent terminal
+    # states errors cluster by batch, so slot counts alone overstate the
+    # evidence; 0 keeps the v1 rule.
+    min_error_batches: int = 0
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "MonteCarloConfig":
@@ -241,6 +246,7 @@ class MonteCarloConfig:
             "ebno_min",
             "ebno_max",
             "ebno_step",
+            "min_error_batches",
         }
         required = {"batch_size", "min_batches", "max_batches", "ebno_min", "ebno_max", "ebno_step"}
         _validate_keys("monte_carlo", raw, allowed)
@@ -287,6 +293,7 @@ class MonteCarloConfig:
             ebno_min=ebno_min,
             ebno_max=ebno_max,
             ebno_step=ebno_step,
+            min_error_batches=_ensure_int(raw.get("min_error_batches", 0), "monte_carlo.min_error_batches"),
         )
 
     @property
@@ -369,6 +376,15 @@ class SystemConfig:
     enable_shadow_fading: bool
     min_ut_velocity: float
     max_ut_velocity: float
+    ut_max_tx_power_dbm: float = 23.0
+    processing_budget_slots: float = 1.0
+    # Ray-traced channel bank (channel_model_type "raytraced"); the "eval" split
+    # is used for every reported result, "train" only by the training scripts.
+    rt_channel_bank: str = "data/rt_channel_bank.npz"
+    rt_bank_split: str = "eval"
+    # "hall": persistent per-batch terminal positions and large-scale gains, no
+    # per-slot link normalisation (system model v2); "none": v1 behaviour.
+    large_scale_model: str = "hall"
 
     _LOCKED_5G_VALUES = {
         "carrier_frequency": 3.5e9,
@@ -383,7 +399,9 @@ class SystemConfig:
 
     _VALID_MODULATIONS = {1, 2, 4, 6}
 
-    _VALID_CHANNEL_MODELS = {"tr38901", "rayleigh", "rician", "awgn"}
+    _VALID_CHANNEL_MODELS = {"tr38901", "rayleigh", "rician", "raytraced", "awgn"}
+    _VALID_RT_SPLITS = {"train", "eval"}
+    _VALID_LARGE_SCALE = {"hall", "none"}
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "SystemConfig":
@@ -409,6 +427,11 @@ class SystemConfig:
             "enable_shadow_fading",
             "min_ut_velocity",
             "max_ut_velocity",
+            "ut_max_tx_power_dbm",
+            "processing_budget_slots",
+            "rt_channel_bank",
+            "rt_bank_split",
+            "large_scale_model",
         }
         required = {
             "carrier_frequency",
@@ -463,7 +486,26 @@ class SystemConfig:
             ),
             min_ut_velocity=_ensure_float(raw["min_ut_velocity"], "system.min_ut_velocity"),
             max_ut_velocity=_ensure_float(raw["max_ut_velocity"], "system.max_ut_velocity"),
+            ut_max_tx_power_dbm=_ensure_float(
+                raw.get("ut_max_tx_power_dbm", 23.0), "system.ut_max_tx_power_dbm"
+            ),
+            processing_budget_slots=_ensure_float(
+                raw.get("processing_budget_slots", 1.0), "system.processing_budget_slots"
+            ),
+            rt_channel_bank=str(raw.get("rt_channel_bank", "data/rt_channel_bank.npz")),
+            rt_bank_split=str(raw.get("rt_bank_split", "eval")).lower(),
+            large_scale_model=str(raw.get("large_scale_model", "hall")).lower(),
         )
+        if parsed.large_scale_model not in cls._VALID_LARGE_SCALE:
+            raise ConfigError(
+                f"'system.large_scale_model' must be one of {sorted(cls._VALID_LARGE_SCALE)} "
+                f"(got '{parsed.large_scale_model}')."
+            )
+        if parsed.rt_bank_split not in cls._VALID_RT_SPLITS:
+            raise ConfigError(
+                f"'system.rt_bank_split' must be one of {sorted(cls._VALID_RT_SPLITS)} "
+                f"(got '{parsed.rt_bank_split}')."
+            )
         channel_model_type = str(raw["channel_model_type"]).lower()
         if channel_model_type not in cls._VALID_CHANNEL_MODELS:
             raise ConfigError(

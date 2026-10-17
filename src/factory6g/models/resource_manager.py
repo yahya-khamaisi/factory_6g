@@ -203,7 +203,15 @@ class ProportionalFairResourceManager(ResourceManager):
         self.needs_channel_feedback = True
         self.num_active = max(1, int(num_active))
         self.alpha = float(alpha)
-        self.avg_rates: np.ndarray | None = None
+        # Rate history is kept per Eb/No point, as the queue-aware and learned
+        # managers keep theirs. A single shared history would make the decision
+        # at one operating point depend on the order the sweep visited the
+        # others, which is not a property of proportional fair scheduling.
+        self._avg_rates_by_state: dict[float, np.ndarray] = {}
+
+    def avg_rates_for(self, ebno_db: float) -> np.ndarray | None:
+        """Return the rate history held for one operating point, if any."""
+        return self._avg_rates_by_state.get(_state_key(ebno_db))
 
     def get_runtime_directives(
         self,
@@ -212,21 +220,25 @@ class ProportionalFairResourceManager(ResourceManager):
         feedback: ResourceManagerFeedback | None = None,
     ) -> ResourceDirectives:
         num_ut = _num_ut(config)
-        if self.avg_rates is None or self.avg_rates.shape[0] != num_ut:
-            self.avg_rates = np.full(num_ut, 1e-3, dtype=np.float64)
+        state_key = _state_key(ebno_db)
+        avg_rates = self._avg_rates_by_state.get(state_key)
+        if avg_rates is None or avg_rates.shape[0] != num_ut:
+            avg_rates = np.full(num_ut, 1e-3, dtype=np.float64)
         if feedback is None:
+            self._avg_rates_by_state[state_key] = avg_rates
             return ResourceDirectives(active_ut_mask=[1] * num_ut)
 
         inst_rates = _instantaneous_rate_per_user(feedback, ebno_db)
-        pf_metric = inst_rates / np.maximum(self.avg_rates, _EPS)
+        pf_metric = inst_rates / np.maximum(avg_rates, _EPS)
         top_indices = _top_indices(pf_metric, self.num_active)
         mask = _mask_from_indices(top_indices.tolist(), num_ut)
 
         for idx in range(num_ut):
             if mask[idx]:
-                self.avg_rates[idx] = (1.0 - self.alpha) * self.avg_rates[idx] + self.alpha * inst_rates[idx]
+                avg_rates[idx] = (1.0 - self.alpha) * avg_rates[idx] + self.alpha * inst_rates[idx]
             else:
-                self.avg_rates[idx] = (1.0 - self.alpha) * self.avg_rates[idx]
+                avg_rates[idx] = (1.0 - self.alpha) * avg_rates[idx]
+        self._avg_rates_by_state[state_key] = avg_rates
         return ResourceDirectives(active_ut_mask=mask)
 
 
@@ -505,6 +517,15 @@ class DRLResourceManager(ResourceManager):
         return ResourceDirectives(active_ut_mask=mask, per_ut_power=power_out, pilot_reuse_factor=1)
 
 
+def _learned_manager(num_active: int, kwargs: dict[str, Any]) -> ResourceManager:
+    """PPO checkpoints load as RLResourceManager; legacy actor checkpoints as DRLResourceManager."""
+    from factory6g.models.rl_resource_manager import RLResourceManager, is_rl_checkpoint
+
+    if is_rl_checkpoint(kwargs.get("model_path")):
+        return RLResourceManager(num_active=num_active, **kwargs)
+    return DRLResourceManager(num_active=num_active, **kwargs)
+
+
 def create_resource_manager(
     name: str,
     *,
@@ -522,7 +543,7 @@ def create_resource_manager(
         or "reliabilitydrl" in name_lower
     ):
         kwargs.setdefault("model_path", "models/reliability_drl_resource_manager_policy")
-        return DRLResourceManager(num_active=num_active, **kwargs)
+        return _learned_manager(num_active, kwargs)
     if "static" in name_lower:
         return StaticResourceManager(active_ut_mask=[1] * num_ut, per_ut_power=[1.0] * num_ut)
     if "round" in name_lower:
@@ -537,7 +558,7 @@ def create_resource_manager(
         return ProportionalFairResourceManager(num_active=num_active, **kwargs)
     if "drl" in name_lower or "ppo" in name_lower or "actor" in name_lower:
         kwargs.setdefault("model_path", drl_model_path)
-        return DRLResourceManager(num_active=num_active, **kwargs)
+        return _learned_manager(num_active, kwargs)
     if "cnn" in name_lower:
         from factory6g.models.cnn_resource_manager import CNNResourceManager
 

@@ -87,7 +87,7 @@ def _configure_root_logging(level: int, console_stream: TextIO, log_path: Path) 
 
 _MODULATION_MAP = {"low": 2, "mid": 4, "high": 6}
 _MODULATION_LABEL_MAP = {2: "qpsk", 4: "16qam", 6: "64qam", 1: "bpsk"}
-_VALID_CHANNELS = {"tr38901", "rayleigh", "rician", "awgn"}
+_VALID_CHANNELS = {"tr38901", "rayleigh", "rician", "raytraced", "awgn"}
 _FACTORY_SIZE_PRESETS = {
     "s": {
         "room_dimensions": [15.0, 15.0, 5.0],
@@ -178,6 +178,8 @@ def _build_run_suffix(config, args: argparse.Namespace) -> str:
 
     all_methods = list(config.estimators.enabled) + list(config.resource_managers.enabled)
     methods_part = "_".join(all_methods) if all_methods else "run"
+    if "coupled" in requested_stages:
+        methods_part = "coupled_" + methods_part
     if "jidd_scma" in requested_stages:
         methods_part = "jidd_scma_" + methods_part if methods_part != "run" else "jidd_scma"
 
@@ -225,7 +227,7 @@ def _parse_args() -> argparse.Namespace:
         "--channel",
         metavar="TYPES",
         default=None,
-        help="Comma-separated channel types: rayleigh, rician, tr38901, awgn. Default: from config.",
+        help="Comma-separated channel types: rayleigh, rician, tr38901, raytraced, awgn. Default: from config.",
     )
     parser.add_argument(
         "--factory-size",
@@ -238,7 +240,8 @@ def _parse_args() -> argparse.Namespace:
         metavar="STAGES",
         default=None,
         help=(
-            "Comma-separated stages to run: estimators, resource_managers, jidd_scma. "
+            "Comma-separated stages to run: estimators, resource_managers, coupled, jidd_scma. "
+            "'coupled' crosses every --estimators method with every --resource-managers method. "
             "Use 'jidd_scma' to run Dr. Athirah's SCMA-OFDM JIDD simulation. "
             "Default: determined by --estimators / --resource-managers flags."
         ),
@@ -374,9 +377,11 @@ def main() -> int:
             requested_stages = [s.strip().lower() for s in args.stage.split(",") if s.strip()]
 
         run_jidd = "jidd_scma" in requested_stages
+        run_coupled = "coupled" in requested_stages
         run_standard = (
             "estimators" in requested_stages
             or "resource_managers" in requested_stages
+            or run_coupled
             or not requested_stages  # default: run standard flow unless only jidd_scma
         ) and not (run_jidd and len(requested_stages) == 1)
 
@@ -387,7 +392,7 @@ def main() -> int:
             run_jidd_scma_flow(config, run_id=run_id, run_dir=run_dir, raw_config=raw_config)
 
         if run_standard:
-            run_simulation_flow(config, run_id=run_id, run_dir=run_dir, modulations=args.modulation_list, channels=args.channel_list, factory_sizes=args.factory_size_list)
+            run_simulation_flow(config, run_id=run_id, run_dir=run_dir, modulations=args.modulation_list, channels=args.channel_list, factory_sizes=args.factory_size_list, coupled=run_coupled)
 
         print(f"Wall-clock time (incl. setup): {fmt_elapsed(time.perf_counter() - _wall_start)}")
         return 0

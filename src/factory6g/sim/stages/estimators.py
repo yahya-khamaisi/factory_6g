@@ -7,14 +7,17 @@ from typing import Any
 from factory6g.models.model import Model
 from factory6g.sim.config import Factory6GConfig
 
-from .checkpoint import delete_checkpoint, load_checkpoint, save_checkpoint
+from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
 from .common import (
     append_point_metrics,
+    channel_error_stats,
     classify_point_status,
     extract_error_stats,
     fmt_elapsed,
     initialize_stage_metrics,
     mc_stop_reason,
+    nmse_db,
+    per_ut_delivered_bits,
     resolve_kwargs,
 )
 
@@ -28,6 +31,14 @@ def _new_estimator_point_state() -> dict[str, Any]:
         "throughput": 0.0,
         "latency_sec": 0.0,
         "energy_joules": 0.0,
+        "latency_model_sec": 0.0,
+        "tx_power_w": 0.0,
+        "tx_energy_joules": 0.0,
+        "per_ut_delivered_bits": None,
+        "ch_sq_error": 0.0,
+        "ch_energy": 0.0,
+        "ch_elements": 0.0,
+        "err_var_sum": 0.0,
         "runtime_sec": 0.0,
         "num_batches": 0,
         "done": False,
@@ -73,6 +84,7 @@ def run_estimator_stage(
             point_state = ckpt["point_state"]
             runtime_totals_sec = ckpt["runtime_totals_sec"]
             start_batch_index = int(ckpt["batch_index"]) + 1
+            reseed_for_resume(config.simulation.seed, start_batch_index)
             print(
                 f"[checkpoint] Resuming estimator from batch "
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
@@ -122,12 +134,33 @@ def run_estimator_stage(
 
                 batch_stats = extract_error_stats(result["bits"], result["bits_hat"])
                 stats["errors"] += batch_stats["bit_errors"]
+                if batch_stats["bit_errors"] > 0:
+                    stats["error_batches"] = stats.get("error_batches", 0) + 1
                 stats["bits"] += batch_stats["total_bits"]
                 stats["block_errors"] += batch_stats["block_errors"]
                 stats["blocks"] += batch_stats["total_blocks"]
                 stats["throughput"] += max(0.0, batch_stats["total_bits"] - batch_stats["bit_errors"])
                 stats["latency_sec"] += float(result.get("runtime_latency_sec", 0.0))
                 stats["energy_joules"] += float(result.get("energy_joules", 0.0))
+                stats["latency_model_sec"] += float(result.get("latency_model_sec", 0.0))
+                stats["tx_power_w"] += float(result.get("tx_power_w", 0.0))
+                stats["tx_energy_joules"] += float(result.get("tx_energy_joules", 0.0))
+                delivered = per_ut_delivered_bits(result["bits"], result["bits_hat"])
+                if stats["per_ut_delivered_bits"] is None:
+                    stats["per_ut_delivered_bits"] = [0] * len(delivered)
+                stats["per_ut_delivered_bits"] = [
+                    int(a) + int(b) for a, b in zip(stats["per_ut_delivered_bits"], delivered)
+                ]
+                # NMSE needs the true channel, which only detailed results carry.
+                if "channel" in result and "channel_hat" in result:
+                    ch_stats = channel_error_stats(result["channel"], result["channel_hat"])
+                    stats["ch_sq_error"] = stats.get("ch_sq_error", 0.0) + ch_stats["sq_error"]
+                    stats["ch_energy"] = stats.get("ch_energy", 0.0) + ch_stats["channel_energy"]
+                    stats["ch_elements"] = stats.get("ch_elements", 0.0) + ch_stats["num_elements"]
+                    stats["err_var_sum"] = (
+                        stats.get("err_var_sum", 0.0)
+                        + float(result.get("err_var_mean", float("nan"))) * ch_stats["num_elements"]
+                    )
                 stats["num_batches"] += 1
 
                 stop_reason = mc_stop_reason(
@@ -141,6 +174,8 @@ def run_estimator_stage(
                     confidence_level=config.monte_carlo.confidence_level,
                     min_batches=config.monte_carlo.min_batches,
                     min_total_bits=config.monte_carlo.min_total_bits,
+                    error_batches=stats.get("error_batches", 0),
+                    min_error_batches=config.monte_carlo.min_error_batches,
                 )
                 if stop_reason is not None:
                     stats["done"] = True
@@ -179,7 +214,24 @@ def run_estimator_stage(
                 "total_blocks": float(stats["blocks"]),
                 "num_batches": float(stats["num_batches"]),
                 "stop_reason": str(stats["stop_reason"] or "max_batches"),
-                "point_status": classify_point_status(float(stats["errors"])),
+                "point_status": classify_point_status(
+                    float(stats["errors"]),
+                    stats.get("error_batches", 0),
+                    config.monte_carlo.min_error_batches,
+                ),
+                "error_batches": int(stats.get("error_batches", 0)),
+                "latency_model_ms": float(stats["latency_model_sec"]) / safe_batches * 1000.0,
+                "tx_power_w": float(stats["tx_power_w"]) / safe_batches,
+                "tx_energy_j_per_batch": float(stats["tx_energy_joules"]) / safe_batches,
+                "per_ut_delivered_bits": list(stats["per_ut_delivered_bits"] or []),
+                "nmse_db": nmse_db(stats.get("ch_sq_error", 0.0), stats.get("ch_energy", 0.0)),
+                # Reported sigma_e^2 over measured MSE: 1 means the variance
+                # handed to the equaliser matches the actual estimation error.
+                "err_var_calibration": (
+                    float(stats["err_var_sum"]) / float(stats["ch_sq_error"])
+                    if stats.get("ch_sq_error", 0.0) > 0.0
+                    else float("nan")
+                ),
             }
             append_point_metrics(
                 aggregated[method],
@@ -190,6 +242,7 @@ def run_estimator_stage(
                 f"  Eb/No={ebno_db:4.1f} dB"
                 f" | BER={point['ber']:.3e}"
                 f" | BERub={aggregated[method]['ber_upper_confidence'][-1]:.3e}"
+                f" | NMSE={point['nmse_db']:.2f} dB"
                 f" | Status={point['point_status']}"
                 f" | Stop={point['stop_reason']}"
                 f" | Latency={point['latency_ms']:.3f} ms"

@@ -37,14 +37,22 @@ RM_LABELS: dict[str, str] = {
     "wmmse": "WMMSE",
     "queue_aware": "Queue-aware",
     "drl": "DRL",
-    "reliability_drl": "Reliability-DRL",
+    "reliability_drl": "Reliability-aware DRL",
 }
 
 CHANNEL_LABELS: dict[str, str] = {
     "rayleigh": "Rayleigh",
     "rician": "Rician",
-    "tr38901": "TR~38.901 UMi",
+    "tr38901": "TR\u00a038.901 UMi",
+    "raytraced": "Ray-traced hall",
 }
+
+ALL_CHANNELS: tuple[str, ...] = ("rayleigh", "rician", "tr38901", "raytraced")
+
+
+def available_channels(run_dir: Path, stage: str = "resource_managers") -> list[str]:
+    """Channels of a multi-channel run that have a stage file, in canonical order."""
+    return [ch for ch in ALL_CHANNELS if (run_dir / ch / stage / "stage_results_v2.json").exists()]
 
 
 def load_stage_json(path: Path) -> dict[str, Any]:
@@ -58,7 +66,9 @@ def _ebno_index(payload: dict[str, Any], ebno_db: float) -> int:
 def _effective_ber(metric_map: dict[str, list[Any]], index: int) -> tuple[float, str]:
     ber = float(metric_map["ber"][index])
     status = str(metric_map["point_status"][index])
-    if ber > 0:
+    # An upper-bound-only point is reported at its 95% bound even when a few
+    # errors were seen, so that a "<=" label never sits on a point estimate.
+    if status != "upper_bound_only" and ber > 0:
         return ber, status
     upper = float(metric_map.get("ber_upper_confidence", [ber])[index])
     return upper, status
@@ -75,7 +85,7 @@ def plot_ch04_ber_heatmap(
     from matplotlib.colors import LogNorm
 
     apply_thesis_rcparams(plt)
-    channels = ["rayleigh", "rician", "tr38901"]
+    channels = available_channels(run_b_dir)
     schedulers = list(CANONICAL_SCHEDULERS)
 
     matrix = np.full((len(schedulers), len(channels)), np.nan)
@@ -90,32 +100,34 @@ def plot_ch04_ber_heatmap(
             matrix[row, col] = max(ber, 1e-12)
             statuses[row][col] = status
 
-    fig, ax = plt.subplots(figsize=(5.8, 3.9))
-    im = ax.imshow(matrix, cmap="YlOrRd", norm=LogNorm(vmin=1e-5, vmax=1e-2), aspect="auto")
+    # Colour scale spans the data (at least one decade) so cells at one
+    # operating point, which lie within a decade or two, stay distinguishable.
+    lo, hi = float(np.nanmin(matrix)), float(np.nanmax(matrix))
+    if hi / lo < 10.0:
+        lo = hi / 10.0
+    threshold = float(np.sqrt(lo * hi))
+
+    fig, ax = plt.subplots(figsize=(3.0 + 1.45 * len(channels), 3.9))
+    im = ax.imshow(matrix, cmap="Blues", norm=LogNorm(vmin=lo, vmax=hi), aspect="auto")
 
     ax.set_xticks(range(len(channels)))
     ax.set_xticklabels([CHANNEL_LABELS[ch] for ch in channels])
     ax.set_yticks(range(len(schedulers)))
     ax.set_yticklabels([RM_LABELS[s] for s in schedulers])
-    ax.set_xlabel("Channel model (Run~B)")
+    ax.set_xlabel("Channel model (Run\u00a0B)")
     ax.set_ylabel("Resource manager")
-    ax.set_title(
-        rf"BER summary at $E_b/N_0 = {ebno_db:.0f}\,\mathrm{{dB}}$"
-        + "\n"
-        + "(adaptive-estimator feedback)",
-        fontsize=FIG_TITLE_PT,
-    )
+    ax.grid(False)
+    # No in-image title: the LaTeX caption states the operating point.
 
     for row in range(len(schedulers)):
         for col in range(len(channels)):
             value = matrix[row, col]
             is_upper = statuses[row][col] == POINT_STATUS_UPPER_BOUND_ONLY
-            if value >= 1e-3:
-                value_fmt = f"{value:.2e}"
-            else:
-                value_fmt = f"{value:.1e}"
+            exponent = int(np.floor(np.log10(value)))
+            mantissa = value / 10.0**exponent
+            value_fmt = rf"{mantissa:.1f}{{\times}}10^{{{exponent}}}"
             if is_upper:
-                text = rf"${value_fmt}^{{\dagger}}$"
+                text = rf"$\leq {value_fmt}$"
             else:
                 text = rf"${value_fmt}$"
             ax.text(
@@ -124,31 +136,13 @@ def plot_ch04_ber_heatmap(
                 text,
                 ha="center",
                 va="center",
-                fontsize=FIG_CALLOUT_PT,
-                color="black" if value < 5e-4 else "white",
+                fontsize=FIG_CALLOUT_PT - 2,
+                color="black" if value < threshold else "white",
             )
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("BER (colour scale)")
-    fig.subplots_adjust(bottom=0.26)
-    fig.text(
-        0.08,
-        0.055,
-        r"$^\dagger$Upper-bound-only (95\% confidence bound",
-        ha="left",
-        va="bottom",
-        fontsize=FIG_CALLOUT_PT,
-        color=SUNWAY_GREY,
-    )
-    fig.text(
-        0.08,
-        0.02,
-        "when zero errors observed)",
-        ha="left",
-        va="bottom",
-        fontsize=FIG_CALLOUT_PT,
-        color=SUNWAY_GREY,
-    )
+    # The caption explains the leq marking; no free-floating note in the image.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=THESIS_DPI, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)

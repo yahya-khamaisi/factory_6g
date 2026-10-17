@@ -10,6 +10,7 @@ from factory6g.sim.config import Factory6GConfig
 from factory6g.sim.output import write_overview_plots, write_stage_outputs, write_summary_outputs
 from factory6g.sim.run_context import build_run_dir, create_run_context, generate_run_id
 from factory6g.sim.stages.common import fmt_elapsed
+from factory6g.sim.stages.coupled import run_coupled_stage
 from factory6g.sim.stages.estimators import run_estimator_stage
 from factory6g.sim.stages.jidd_scma import run_jidd_scma_stage
 from factory6g.sim.stages.resource_managers import run_resource_manager_stage
@@ -150,6 +151,7 @@ def run_simulation_flow(
     modulations: list[tuple[str, int]] | None = None,
     channels: list[str] | None = None,
     factory_sizes: list[str] | None = None,
+    coupled: bool = False,
 ) -> dict[str, Any]:
     if run_id is None and run_dir is None:
         run_id, run_dir = create_run_context(
@@ -177,14 +179,19 @@ def run_simulation_flow(
     if not factory_sizes:
         factory_sizes = ["s"]
 
-    run_estimators = bool(config.estimators.enabled)
-    run_rms = bool(config.resource_managers.enabled)
+    # The coupled stage crosses the estimator and scheduler rosters itself, so
+    # the two separate stages are not run alongside it.
+    run_coupled = bool(coupled)
+    run_estimators = bool(config.estimators.enabled) and not run_coupled
+    run_rms = bool(config.resource_managers.enabled) and not run_coupled
 
     active_stages = []
     if run_estimators:
         active_stages.append("estimators")
     if run_rms:
         active_stages.append("resource_managers")
+    if run_coupled:
+        active_stages.append("coupled")
 
     multi_size = len(factory_sizes) > 1
     multi_mod = len(modulations) > 1
@@ -199,8 +206,10 @@ def run_simulation_flow(
     print(f"Stages: {' -> '.join(active_stages) if active_stages else '(none)'}")
     if run_estimators:
         print(f"Estimators: {config.estimators.enabled}")
-    if run_rms:
+    if run_rms or run_coupled:
         print(f"Resource managers: {config.resource_managers.enabled}")
+    if run_coupled:
+        print(f"Coupled estimators: {config.estimators.enabled}")
     print(f"Factory sizes: {' | '.join(size_display_names)}")
     print(f"Modulations: {' | '.join(mod_display_names)}")
     print(f"Channels: {' | '.join(channels)}")
@@ -359,6 +368,43 @@ def run_simulation_flow(
                         rm_result["ebno_db_range"],
                         rm_result["runtime_totals_sec"],
                     ))
+
+                if run_coupled:
+                    coupled_stage_dir = combo_dir / "coupled"
+                    saved_coupled = _load_completed_stage(coupled_stage_dir)
+                    if saved_coupled is not None:
+                        print("[checkpoint] Coupled stage already complete — skipping.")
+                        coupled_result = {
+                            "stage": "coupled",
+                            "ebno_db_range": saved_coupled["ebno_db_range"],
+                            "methods": saved_coupled["methods"],
+                            "runtime_totals_sec": saved_coupled["runtime_totals_sec"],
+                        }
+                        coupled_paths = {
+                            "dir": str(coupled_stage_dir),
+                            "json": str(coupled_stage_dir / "stage_results_v2.json"),
+                            "csv": str(coupled_stage_dir / "stage_results_v2.csv"),
+                        }
+                    else:
+                        print("[coupled] Starting...")
+                        _t = time.perf_counter()
+                        coupled_result = run_coupled_stage(combo_config, checkpoint_dir=coupled_stage_dir)
+                        print(f"[coupled] Done in {fmt_elapsed(time.perf_counter() - _t)}")
+                        # 24+ methods per panel would be unreadable in the default stage plots.
+                        coupled_paths = write_stage_outputs(
+                            run_id=run_id,
+                            stage_name="coupled",
+                            stage_result=coupled_result,
+                            stage_dir=coupled_stage_dir,
+                            config_snapshot=combo_config.to_dict(),
+                            confidence_level=combo_config.monte_carlo.confidence_level,
+                            plot_results=False,
+                        )
+                    stage_payloads["coupled"] = {
+                        "methods": coupled_result["methods"],
+                        "runtime_totals_sec": coupled_result["runtime_totals_sec"],
+                    }
+                    stage_paths["coupled"] = coupled_paths
 
                 # Merge into top-level dicts keyed by "{combo_key}/{stage}" or just "{stage}"
                 for stage_key, payload in stage_payloads.items():

@@ -43,6 +43,14 @@ METRIC_KEYS = (
     "num_batches",
     "stop_reason",
     "point_status",
+    "latency_model_ms",
+    "tx_power_w",
+    "tx_energy_j_per_batch",
+    "per_ut_delivered_bits",
+    "jain_fairness",
+    "nmse_db",
+    "err_var_calibration",
+    "error_batches",
 )
 
 
@@ -50,8 +58,15 @@ def initialize_stage_metrics(methods: list[str]) -> dict[str, dict[str, list[Any
     return {method: {key: [] for key in METRIC_KEYS} for method in methods}
 
 
-def classify_point_status(bit_errors: float) -> str:
+def classify_point_status(
+    bit_errors: float,
+    error_batches: int | None = None,
+    min_error_batches: int = 0,
+) -> str:
+    """Resolved needs enough bit errors and, if required, errors from enough distinct batches."""
     if float(bit_errors) < float(MIN_RESOLVED_BIT_ERRORS):
+        return POINT_STATUS_UPPER_BOUND_ONLY
+    if error_batches is not None and int(error_batches) < int(min_error_batches):
         return POINT_STATUS_UPPER_BOUND_ONLY
     return POINT_STATUS_RESOLVED
 
@@ -79,6 +94,52 @@ def transmitted_ut_mask(
         power_active = raw[:num_ut] > 0.0
 
     return (base_active & power_active).astype(np.int32).tolist()
+
+
+def jain_fairness_index(per_ut_values: Sequence[float]) -> float:
+    """Jain's index (sum x)^2 / (n * sum x^2); 1 is perfectly even, 1/n is one user only."""
+    x = np.asarray(list(per_ut_values), dtype=np.float64)
+    denom = x.size * float(np.sum(x * x))
+    if x.size == 0 or denom <= 0.0:
+        return float("nan")
+    return float(np.sum(x) ** 2 / denom)
+
+
+def per_ut_delivered_bits(
+    bits: np.ndarray,
+    bits_hat: np.ndarray,
+    ut_mask: Sequence[int] | None = None,
+) -> list[int]:
+    """Correctly delivered information bits per terminal; masked terminals deliver none."""
+    correct = np.equal(bits, bits_hat)
+    axes = tuple(i for i in range(correct.ndim) if i != 1)
+    delivered = correct.sum(axis=axes).astype(np.int64)
+    if ut_mask is not None:
+        delivered = delivered * (np.asarray(list(ut_mask), dtype=np.int64).reshape(-1) > 0)
+    return delivered.tolist()
+
+
+def channel_error_stats(channel: np.ndarray, channel_hat: np.ndarray) -> dict[str, float]:
+    """Squared estimation error, channel energy and element count for one batch.
+
+    Summed rather than averaged so that per-point NMSE (Eq. nmse) is the ratio
+    of totals over all batches, not a mean of per-batch ratios.
+    """
+    h = np.asarray(channel)
+    h_hat = np.asarray(channel_hat)
+    if h.shape != h_hat.shape:
+        raise ValueError(f"channel shape {h.shape} does not match estimate shape {h_hat.shape}.")
+    return {
+        "sq_error": float(np.sum(np.abs(h_hat - h) ** 2)),
+        "channel_energy": float(np.sum(np.abs(h) ** 2)),
+        "num_elements": float(h.size),
+    }
+
+
+def nmse_db(sq_error: float, channel_energy: float) -> float:
+    if channel_energy <= 0.0:
+        return float("nan")
+    return float(10.0 * np.log10(max(sq_error, 1e-30) / channel_energy))
 
 
 def extract_error_stats(
@@ -140,8 +201,13 @@ def mc_stop_reason(
     confidence_level: float,
     min_batches: int,
     min_total_bits: int,
+    error_batches: int | None = None,
+    min_error_batches: int = 0,
 ) -> str | None:
     if num_batches < min_batches or total_bits < min_total_bits:
+        return None
+    if error_batches is not None and int(error_batches) < int(min_error_batches):
+        # Not yet enough independent batches behind the errors: keep sampling.
         return None
     if stop_policy == "sweep":
         if target_block_errors is not None and total_block_errors >= target_block_errors:
@@ -184,6 +250,15 @@ def append_point_metrics(
     aggregate["block_errors"].append(float(point["block_errors"]))
     aggregate["total_blocks"].append(float(point["total_blocks"]))
     aggregate["num_batches"].append(float(point["num_batches"]))
+    aggregate["latency_model_ms"].append(float(point.get("latency_model_ms", float("nan"))))
+    aggregate["tx_power_w"].append(float(point.get("tx_power_w", float("nan"))))
+    aggregate["tx_energy_j_per_batch"].append(float(point.get("tx_energy_j_per_batch", float("nan"))))
+    delivered = [float(v) for v in point.get("per_ut_delivered_bits", [])]
+    aggregate["per_ut_delivered_bits"].append(delivered)
+    aggregate["jain_fairness"].append(jain_fairness_index(delivered) if delivered else float("nan"))
+    aggregate["nmse_db"].append(float(point.get("nmse_db", float("nan"))))
+    aggregate["err_var_calibration"].append(float(point.get("err_var_calibration", float("nan"))))
+    aggregate["error_batches"].append(float(point.get("error_batches", float("nan"))))
     aggregate["stop_reason"].append(str(point.get("stop_reason", "unknown")))
     aggregate["point_status"].append(
         str(point.get("point_status", classify_point_status(float(point["bit_errors"]))))

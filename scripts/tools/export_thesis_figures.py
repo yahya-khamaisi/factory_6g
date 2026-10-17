@@ -5,7 +5,7 @@ Uses the shared thesis matplotlib style (serif, $E_b/N_0$ axis, canonical legend
 
 Example (inside Docker):
     python scripts/tools/export_thesis_figures.py \\
-        --json results/20260411_211535_neural_ls_rayleigh_qpsk_s/estimators/stage_results_v2.json \\
+        --json results/20260926_202358_neural_ls_max_throughput_rayleigh_qpsk_s/estimators/stage_results_v2.json \\
         --prefix ch04_estimators_rayleigh_qpsk
 """
 

@@ -8,7 +8,7 @@ from factory6g.models.model import Model
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.sim.config import Factory6GConfig
 
-from .checkpoint import delete_checkpoint, load_checkpoint, save_checkpoint
+from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
 from .common import (
     append_point_metrics,
     classify_point_status,
@@ -16,6 +16,7 @@ from .common import (
     fmt_elapsed,
     initialize_stage_metrics,
     mc_stop_reason,
+    per_ut_delivered_bits,
     resolve_kwargs,
     transmitted_ut_mask,
 )
@@ -30,6 +31,10 @@ def _new_rm_point_state() -> dict[str, Any]:
         "throughput": 0.0,
         "latency_sec": 0.0,
         "energy_joules": 0.0,
+        "latency_model_sec": 0.0,
+        "tx_power_w": 0.0,
+        "tx_energy_joules": 0.0,
+        "per_ut_delivered_bits": None,
         "runtime_sec": 0.0,
         "num_batches": 0,
         "done": False,
@@ -83,6 +88,7 @@ def run_resource_manager_stage(
             point_state = ckpt["point_state"]
             runtime_totals_sec = ckpt["runtime_totals_sec"]
             start_batch_index = int(ckpt["batch_index"]) + 1
+            reseed_for_resume(config.simulation.seed, start_batch_index)
             print(
                 f"[checkpoint] Resuming resource_managers from batch "
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
@@ -139,12 +145,23 @@ def run_resource_manager_stage(
                     ut_mask=active_ut_mask,
                 )
                 stats["errors"] += batch_stats["bit_errors"]
+                if batch_stats["bit_errors"] > 0:
+                    stats["error_batches"] = stats.get("error_batches", 0) + 1
                 stats["bits"] += batch_stats["total_bits"]
                 stats["block_errors"] += batch_stats["block_errors"]
                 stats["blocks"] += batch_stats["total_blocks"]
                 stats["throughput"] += max(0.0, batch_stats["total_bits"] - batch_stats["bit_errors"])
                 stats["latency_sec"] += float(result.get("runtime_latency_sec", 0.0))
                 stats["energy_joules"] += float(result.get("energy_joules", 0.0))
+                stats["latency_model_sec"] += float(result.get("latency_model_sec", 0.0))
+                stats["tx_power_w"] += float(result.get("tx_power_w", 0.0))
+                stats["tx_energy_joules"] += float(result.get("tx_energy_joules", 0.0))
+                delivered = per_ut_delivered_bits(result["bits"], result["bits_hat"], ut_mask=active_ut_mask)
+                if stats["per_ut_delivered_bits"] is None:
+                    stats["per_ut_delivered_bits"] = [0] * len(delivered)
+                stats["per_ut_delivered_bits"] = [
+                    int(a) + int(b) for a, b in zip(stats["per_ut_delivered_bits"], delivered)
+                ]
                 stats["num_batches"] += 1
 
                 stop_reason = mc_stop_reason(
@@ -158,6 +175,8 @@ def run_resource_manager_stage(
                     confidence_level=config.monte_carlo.confidence_level,
                     min_batches=config.monte_carlo.min_batches,
                     min_total_bits=config.monte_carlo.min_total_bits,
+                    error_batches=stats.get("error_batches", 0),
+                    min_error_batches=config.monte_carlo.min_error_batches,
                 )
                 if stop_reason is not None:
                     stats["done"] = True
@@ -195,7 +214,16 @@ def run_resource_manager_stage(
                 "total_blocks": float(stats["blocks"]),
                 "num_batches": float(stats["num_batches"]),
                 "stop_reason": str(stats["stop_reason"] or "max_batches"),
-                "point_status": classify_point_status(float(stats["errors"])),
+                "point_status": classify_point_status(
+                    float(stats["errors"]),
+                    stats.get("error_batches", 0),
+                    config.monte_carlo.min_error_batches,
+                ),
+                "error_batches": int(stats.get("error_batches", 0)),
+                "latency_model_ms": float(stats["latency_model_sec"]) / safe_batches * 1000.0,
+                "tx_power_w": float(stats["tx_power_w"]) / safe_batches,
+                "tx_energy_j_per_batch": float(stats["tx_energy_joules"]) / safe_batches,
+                "per_ut_delivered_bits": list(stats["per_ut_delivered_bits"] or []),
             }
             append_point_metrics(
                 aggregated[method],

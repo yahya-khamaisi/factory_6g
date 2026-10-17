@@ -182,6 +182,15 @@ class Receiver:
                                       num_iter=self.config.get("num_decoding_iter", 20),
                                       hard_out=True, 
                                       return_num_iter=True)
+        # Run belief propagation as a traced graph. Called eagerly, the
+        # decoder's while_loop over ragged tensors retains native memory on
+        # every call, which exhausted a 16 GB container after ~1500 Monte Carlo
+        # batches. The graph gives the same block-error decisions as eager
+        # decoding; inside codewords it fails to decode, floating-point
+        # ordering can flip a few hard decisions (2 of ~2e6 LS bits at 0 dB in
+        # a 120-batch check), so bit-exact agreement with eager runs is not
+        # guaranteed there.
+        self._decode_graph = tf.function(self._decoder, reduce_retracing=True)
     
     def estimate_channel(self, y: tf.Tensor, noise_var: tf.Tensor) -> tuple:
         """
@@ -372,7 +381,7 @@ class Receiver:
             Shape: [batch_size, num_tx, num_streams, num_info_bits]
             Values are 0 or 1 (hard decisions)
         """
-        decoder_out = self._decoder(llr)
+        decoder_out = self._decode_graph(llr)
         if isinstance(decoder_out, tuple):
             if len(decoder_out) == 3:
                 decoded, _, num_iter = decoder_out

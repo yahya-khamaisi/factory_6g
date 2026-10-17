@@ -1,0 +1,50 @@
+{
+  "format": "factory6g_rl_policy_v1",
+  "created_at_utc": "2026-10-13T17:50:10.582650+00:00",
+  "algorithm": "PPO (clipped surrogate, GAE)",
+  "objective": "throughput",
+  "ppo": {
+    "iterations": 150,
+    "steps_per_iteration": 256,
+    "gamma": 0.9,
+    "gae_lambda": 0.95,
+    "clip_ratio": 0.2,
+    "learning_rate": 0.0003,
+    "update_epochs": 4,
+    "minibatch_size": 64,
+    "entropy_coef": 0.01,
+    "value_coef": 0.5,
+    "hidden_dim": 128,
+    "seed": 42
+  },
+  "environment": {
+    "channel_models": [
+      "rayleigh",
+      "rician",
+      "tr38901",
+      "raytraced"
+    ],
+    "ebno_grid_db": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0,
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0
+    ],
+    "batch_size": 20,
+    "episode_length": 16,
+    "num_active": 2,
+    "power_levels": [
+      0.5,
+      1.0
+    ],
+    "estimator": "adaptive"
+  },
+  "environment_steps": 38400
+}

@@ -1,0 +1,272 @@
+{
+  "model_path": "models/neural_estimator_rt.keras",
+  "dataset_manifest": "data/channel_train_v3.npz.manifest.json",
+  "dataset": {
+    "total_samples": 204800,
+    "channel_types": [
+      "rayleigh",
+      "rician",
+      "raytraced",
+      "tr38901"
+    ],
+    "channel_batch_counts": {
+      "rayleigh": 48,
+      "rician": 27,
+      "raytraced": 20,
+      "tr38901": 5
+    },
+    "num_generation_batches": 100,
+    "batch_size": 64,
+    "ebno_db_range": [
+      0.0,
+      20.0
+    ],
+    "seed": 42,
+    "created_at_utc": "2026-10-13T11:45:53.353756+00:00"
+  },
+  "split": {
+    "rule": "sample index mod 10: 0-7 train, 8 validation, 9 test",
+    "counts": {
+      "train": 163840,
+      "val": 20480,
+      "test": 20480
+    }
+  },
+  "training": {
+    "optimizer": "Adam",
+    "initial_learning_rate": 0.001,
+    "batch_size": 256,
+    "max_epochs": 20,
+    "epochs_run": 20,
+    "best_val_loss": 0.0045980168506503105,
+    "seed": 42
+  },
+  "test_nmse": [
+    {
+      "channel": "all",
+      "ebno_band_db": "all",
+      "num_grids": 20480,
+      "nmse_ls_db": -11.18207819714524,
+      "nmse_neural_db": -20.328941165026727
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 5735,
+      "nmse_ls_db": -7.160848165088901,
+      "nmse_neural_db": -16.44076770126891
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 5530,
+      "nmse_ls_db": -12.244466830282692,
+      "nmse_neural_db": -21.437213325289086
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 4711,
+      "nmse_ls_db": -16.78539692915863,
+      "nmse_neural_db": -25.14145021664978
+    },
+    {
+      "channel": "all",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 4504,
+      "nmse_ls_db": -21.313261620228,
+      "nmse_neural_db": -28.684173992461343
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": "all",
+      "num_grids": 9831,
+      "nmse_ls_db": -11.554928636969864,
+      "nmse_neural_db": -20.775198328811992
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 2662,
+      "nmse_ls_db": -7.466887517228442,
+      "nmse_neural_db": -16.844769469538925
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 2458,
+      "nmse_ls_db": -12.02024145868679,
+      "nmse_neural_db": -21.217390465370972
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 2867,
+      "nmse_ls_db": -17.304965830316302,
+      "nmse_neural_db": -25.796116492043257
+    },
+    {
+      "channel": "rayleigh",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 1844,
+      "nmse_ls_db": -22.812479887975336,
+      "nmse_neural_db": -29.93015690625219
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": "all",
+      "num_grids": 5530,
+      "nmse_ls_db": -10.661280669922439,
+      "nmse_neural_db": -20.011635554973928
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 1434,
+      "nmse_ls_db": -6.335394577618322,
+      "nmse_neural_db": -15.812961946700286
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 1844,
+      "nmse_ls_db": -12.465692447143528,
+      "nmse_neural_db": -21.68311636368268
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -16.075210458494592,
+      "nmse_neural_db": -24.87060833063659
+    },
+    {
+      "channel": "rician",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 1023,
+      "nmse_ls_db": -22.650779706108153,
+      "nmse_neural_db": -30.517572735926986
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": "all",
+      "num_grids": 4095,
+      "nmse_ls_db": -10.975959712584045,
+      "nmse_neural_db": -20.252095172152316
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 1229,
+      "nmse_ls_db": -7.131193837825086,
+      "nmse_neural_db": -16.55116811861233
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        5.0,
+        10.0
+      ],
+      "num_grids": 1228,
+      "nmse_ls_db": -12.386915210224592,
+      "nmse_neural_db": -21.532921989770184
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -18.657923712511653,
+      "nmse_neural_db": -26.8879459636165
+    },
+    {
+      "channel": "raytraced",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 1228,
+      "nmse_ls_db": -21.244002963623117,
+      "nmse_neural_db": -28.866828936320196
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": "all",
+      "num_grids": 1024,
+      "nmse_ls_db": -11.645700922648675,
+      "nmse_neural_db": -18.747560473059032
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        0.0,
+        5.0
+      ],
+      "num_grids": 410,
+      "nmse_ls_db": -8.90343817125102,
+      "nmse_neural_db": -16.081314407166786
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        10.0,
+        15.0
+      ],
+      "num_grids": 205,
+      "nmse_ls_db": -13.502261817806014,
+      "nmse_neural_db": -20.190337436844743
+    },
+    {
+      "channel": "tr38901",
+      "ebno_band_db": [
+        15.0,
+        20.0
+      ],
+      "num_grids": 409,
+      "nmse_ls_db": -16.726873381873354,
+      "nmse_neural_db": -23.842477582760132
+    }
+  ],
+  "created_at_utc": "2026-10-13T16:25:58.501152+00:00"
+}

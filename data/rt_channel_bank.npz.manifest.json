@@ -1,0 +1,125 @@
+{
+  "format_version": 1,
+  "created_at_utc": "2026-10-13T11:39:47.863433+00:00",
+  "config_sha256": "dc087e4cc7f4a685bbf6eb13e299701f81548e9a83e30129d8afe0ef56842b2d",
+  "hall": {
+    "room_dimensions": [
+      15.0,
+      15.0,
+      5.0
+    ],
+    "machines": [
+      {
+        "x": 2.1710483196530026,
+        "y": -4.464049173235855,
+        "z": 0.0,
+        "sx": 1.660934072833945,
+        "sy": 1.1583176596280784,
+        "sz": 1.3585979199113825
+      },
+      {
+        "x": -4.090750040568995,
+        "y": -0.5457546831487612,
+        "z": 0.0,
+        "sx": 1.963433527455134,
+        "sy": 1.6417095529855295,
+        "sz": 1.2860643052769538
+      },
+      {
+        "x": 3.55037774597913,
+        "y": -0.6224438128993572,
+        "z": 0.0,
+        "sx": 1.056197036348872,
+        "sy": 1.8901474832729028,
+        "sz": 1.1438651200806644
+      },
+      {
+        "x": 3.6039428919184022,
+        "y": 1.4483083903427136,
+        "z": 0.0,
+        "sx": 0.8408580826771653,
+        "sy": 1.3318771805237521,
+        "sz": 0.5638172561041753
+      },
+      {
+        "x": 4.324332334544174,
+        "y": 3.0622184678113804,
+        "z": 0.0,
+        "sx": 1.6371316101280606,
+        "sy": 1.0317889521948025,
+        "sz": 1.4706980243949033
+      }
+    ],
+    "wall_thickness": 0.2,
+    "metal": {
+      "name": "factory_metal",
+      "relative_permittivity": 1.0,
+      "conductivity": 10000000.0
+    },
+    "concrete": {
+      "name": "factory_concrete",
+      "relative_permittivity": 7.0,
+      "conductivity": 0.1
+    },
+    "carrier_frequency": 3500000000.0,
+    "num_bs_ant": 8,
+    "bs_position": [
+      0.0,
+      0.0,
+      4.0
+    ],
+    "bs_array": "1x4 cross-polarised, facing floor",
+    "ut_height": 1.0,
+    "antenna_spacing": 0.5,
+    "bs_pattern": "tr38901",
+    "ut_pattern": "iso",
+    "ut_polarization": "V"
+  },
+  "layout_seed": 42,
+  "position_seed": 2026,
+  "split": {
+    "method": "checkerboard",
+    "cell_m": 1.5,
+    "guard_m": 0.25,
+    "min_train_eval_distance_m": 0.5
+  },
+  "ray_tracing": {
+    "max_depth": 5,
+    "samples_per_src": 10000,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false
+  },
+  "fft_size": 128,
+  "subcarrier_spacing": 30000.0,
+  "array_shape": "[N, num_bs_ant, fft_size] uplink CFR, delays normalised, not power-normalised",
+  "stats": {
+    "train": {
+      "count": 8192,
+      "trace_seconds": 83.6,
+      "los_fraction": 0.9937744140625,
+      "k_factor_db_median": 7.606999397277832,
+      "k_factor_db_p10_p90": [
+        6.260475206375122,
+        9.406552696228028
+      ],
+      "rms_delay_spread_ns_median": 5.161208629608154,
+      "rms_delay_spread_ns_p90": 7.724313020706178,
+      "num_paths_median": 202.0
+    },
+    "eval": {
+      "count": 4096,
+      "trace_seconds": 46.5,
+      "los_fraction": 0.95947265625,
+      "k_factor_db_median": 7.589139461517334,
+      "k_factor_db_p10_p90": [
+        6.027368068695068,
+        9.37385606765747
+      ],
+      "rms_delay_spread_ns_median": 5.2809834480285645,
+      "rms_delay_spread_ns_p90": 8.261010646820068,
+      "num_paths_median": 202.0
+    }
+  }
+}

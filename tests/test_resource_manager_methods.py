@@ -178,3 +178,64 @@ def test_drl_manager_heuristic_fallback_returns_valid_directives():
     assert directives.active_ut_mask[0] == 1
     assert len(directives.per_ut_power) == 4
     assert all(0.0 <= value <= 1.0 for value in directives.per_ut_power)
+
+
+def _pf_manager():
+    return create_resource_manager(
+        "pf",
+        num_ut=4,
+        num_active=2,
+        cnn_model_path=None,
+        drl_model_path=None,
+        manager_kwargs={},
+    )
+
+
+def test_pf_rate_history_is_kept_per_operating_point():
+    """PF state must not leak between Eb/No points.
+
+    A shared history would make the decision at one operating point depend on
+    how many batches an unrelated point had already consumed.
+    """
+    manager = _pf_manager()
+    config = {"num_ut": 4}
+    feedback = _make_feedback()
+
+    for _ in range(5):
+        manager.get_runtime_directives(config, ebno_db=0.0, feedback=feedback)
+
+    assert manager.avg_rates_for(0.0) is not None
+    assert manager.avg_rates_for(10.0) is None
+
+    fresh = _pf_manager()
+    warmed = manager.get_runtime_directives(config, ebno_db=10.0, feedback=feedback)
+    cold = fresh.get_runtime_directives(config, ebno_db=10.0, feedback=feedback)
+    assert warmed.active_ut_mask == cold.active_ut_mask
+
+    np.testing.assert_allclose(
+        manager.avg_rates_for(10.0),
+        fresh.avg_rates_for(10.0),
+    )
+
+
+def test_pf_sweep_order_does_not_change_decisions():
+    config = {"num_ut": 4}
+    feedback = _make_feedback()
+    points = [0.0, 4.0, 8.0]
+
+    forward = _pf_manager()
+    for _ in range(3):
+        for ebno in points:
+            forward.get_runtime_directives(config, ebno_db=ebno, feedback=feedback)
+
+    reverse = _pf_manager()
+    for _ in range(3):
+        for ebno in reversed(points):
+            reverse.get_runtime_directives(config, ebno_db=ebno, feedback=feedback)
+
+    for ebno in points:
+        np.testing.assert_allclose(
+            forward.avg_rates_for(ebno),
+            reverse.avg_rates_for(ebno),
+            err_msg=f"PF history at {ebno} dB depends on sweep order",
+        )
