@@ -112,8 +112,8 @@ def table_ce_gain(canon: dict, out_dir: Path) -> None:
     lines.append("  \\centering")
     lines.append(
         "  \\caption{BER of LS divided by the BER of each refinement on shared inputs "
-        "(Run~C), by channel model and operating point: a value of 2 means the "
-        "refinement halves the decoded BER of LS on the same channel and noise draws.}"
+        "(Run~C): a value of 2 means the refinement halves the decoded BER of LS on "
+        "the same draws.}"
     )
     lines.append("  \\label{tab:ch04-ce-gain}")
     lines.append("  \\small")
@@ -151,12 +151,8 @@ def table_rm_service(canon: dict, out_dir: Path) -> None:
     lines.append("  \\centering")
     lines.append(
         "  \\caption{Service metrics of the eight schedulers at $E_b/N_0 = 0$ and 30\\,dB "
-        "(Run~B): correctly delivered information bits per batch $T$, "
-        "Eq.~\\eqref{eq:throughput}; allocated uplink transmit power $P_{\\mathrm{tx}}$, "
-        "Eq.~\\eqref{eq:tx-power}; and Jain's index $\\mathcal{J}$ over per-terminal "
-        "delivered bits, Eq.~\\eqref{eq:jain}. The throughput ceiling is 122{,}880 "
-        "bits per batch for static activation and 61{,}440 for the two-terminal "
-        "schedulers.}"
+        "(Run~B): delivered information bits per batch $T$, allocated transmit power "
+        "$P_{\\mathrm{tx}}$ and Jain's index $\\mathcal{J}$ over per-terminal bits.}"
     )
     lines.append("  \\label{tab:ch04-rm-service}")
     # 32 body rows plus group and header rows: footnotesize and a tighter
@@ -211,11 +207,9 @@ def table_coupled_gain(canon: dict, out_dir: Path) -> None:
     lines.append("\\begin{table}[htbp]")
     lines.append("  \\centering")
     lines.append(
-        "  \\caption{Estimation gain and genie gap under each scheduler (Run~D). "
-        "``Neural gain'' is the BER with LS CSI divided by the BER with neural CSI "
-        "under the same scheduler on the same draws; ``genie gap'' is the BER with "
-        "neural CSI divided by the BER with perfect CSI, so a value near 1 means "
-        "little estimation gain remains to be had.}"
+        "  \\caption{Estimation gain and genie gap under each scheduler (Run~D): BER "
+        "with LS CSI over BER with neural CSI, and BER with neural CSI over BER with "
+        "perfect CSI, under the same scheduler on the same draws.}"
     )
     lines.append("  \\label{tab:ch04-coupled-gain}")
     lines.append("  \\small")
