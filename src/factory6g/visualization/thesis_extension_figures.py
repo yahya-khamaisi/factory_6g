@@ -50,7 +50,11 @@ def _point_status_array(metric_map: dict[str, list[Any]], *, fallback_len: int) 
     return np.asarray(["resolved"] * fallback_len, dtype=object)
 
 
-UPPER_BOUND_NOTE = "Open markers, dashed: 95% upper bound on BER (fewer than 30 bit errors)"
+UPPER_BOUND_NOTE = "Open markers with a downward arrow: 95% upper bound on BER (fewer than 30 bit errors)"
+# An upper-bound-only point is drawn as an isolated open marker with a short
+# arrow pointing down, the usual "<= bound" convention; the arrow tail sits
+# 0.4 decade below the bound on the log axis.
+BOUND_ARROW_FACTOR = 2.5
 
 
 def _status_handles() -> tuple[list[Any], list[str]]:
@@ -60,8 +64,15 @@ def _status_handles() -> tuple[list[Any], list[str]]:
     from factory6g.visualization.thesis_plot_style import MUTED
 
     resolved = Line2D([], [], color=MUTED, marker="o", linestyle="-", linewidth=1.4)
-    bound = Line2D([], [], color=MUTED, marker="o", markerfacecolor="none", linestyle="--", linewidth=1.2)
-    return [resolved, bound], ["Resolved (≥ 30 errors)", "95% upper bound"]
+    bound_seen = Line2D([], [], color=MUTED, marker="o", markerfacecolor="none",
+                        markeredgewidth=1.3, linestyle="none")
+    bound_zero = Line2D([], [], color=MUTED, marker="_", markersize=9,
+                        markeredgewidth=1.6, linestyle="none")
+    return (
+        [resolved, bound_seen, bound_zero],
+        ["Resolved (≥ 30 errors)", r"$\downarrow$ 95% upper bound, errors seen",
+         r"$\downarrow$ 95% upper bound, no error"],
+    )
 
 
 def _wrap_ylabel(text: str, max_chars: int = 26) -> str:
@@ -81,6 +92,9 @@ def _span_one_decade(ax: Any) -> None:
     lo, hi = ax.get_ylim()
     if lo <= 0 or hi <= 0:
         return
+    # Keep the arrow tails of upper-bound-only points inside the axis (the
+    # figure records the lowest tail drawn on any of its axes).
+    lo = min(lo, getattr(ax.figure, "_factory6g_min_arrow_tail", lo))
     ax.set_ylim(10 ** math.floor(math.log10(lo)), 10 ** math.ceil(math.log10(hi)))
 
 
@@ -114,25 +128,53 @@ def _place_legend(ax, n_entries: int, *, status_keys: bool = False) -> None:
 def _draw_ber_series(ax: Any, x: np.ndarray, metric_map: dict[str, list[Any]], name: str, stage_hint: str | None) -> None:
     """Draw one method's BER sweep following the point-status rule.
 
-    Resolved points (at least 30 bit errors) are solid markers joined only to
-    neighbouring resolved points; upper-bound-only points are open markers at
-    their 95% upper confidence bound, joined by dashed segments. Lines never
-    bridge a point of the other status.
+    Resolved points (at least 30 bit errors in at least 10 batches) are solid
+    markers joined only to neighbouring resolved points, so the curve stops at
+    the last resolved point. An upper-bound-only point is an isolated open
+    marker at its 95% upper confidence bound with a short downward arrow, and
+    is never joined to its neighbours: a bound is not a BER estimate, and a
+    line through bounds would draw spikes and dips that the data do not
+    contain. A point with no observed bit error (zero-error bound) is drawn as
+    a short horizontal bar instead of the method marker, since no estimate
+    exists there at all.
     """
     ber = _coerce_float_array(metric_map["ber"])
     upper = _coerce_float_array(metric_map.get("ber_upper_confidence", metric_map["ber"]))
     statuses = metric_map.get("point_status", [])
     resolved = np.asarray([str(s) != POINT_STATUS_UPPER_BOUND_ONLY for s in statuses], dtype=bool) if statuses else ber > 0
+    bit_errors = metric_map.get("bit_errors")
+    if isinstance(bit_errors, list) and len(bit_errors) == len(ber):
+        no_error = _coerce_float_array(bit_errors) <= 0
+    else:
+        no_error = ber <= 0
     marker = method_marker(name, stage_hint=stage_hint)
     color = method_color(name, stage_hint=stage_hint)
     label = method_label(name)
     y_res = np.where(resolved & (ber > 0), ber, np.nan)
-    y_ub = np.where(~resolved, upper, np.nan)
     if np.any(np.isfinite(y_res)):
         ax.semilogy(x, y_res, marker=marker, linewidth=1.8, color=color, label=label)
         label = "_nolegend_"
-    if np.any(np.isfinite(y_ub)):
-        ax.semilogy(x, y_ub, marker=marker, markerfacecolor="none", linestyle="--", linewidth=1.3, color=color, label=label)
+    for zero, bound_marker in ((False, marker), (True, "_")):
+        sel = (~resolved) & (no_error == zero) & np.isfinite(upper) & (upper > 0)
+        if not np.any(sel):
+            continue
+        ax.semilogy(
+            x[sel], upper[sel], marker=bound_marker, markerfacecolor="none",
+            markersize=9 if zero else None, markeredgewidth=1.6 if zero else 1.3,
+            linestyle="none", color=color, label=label,
+        )
+        label = "_nolegend_"
+        tails = upper[sel] / BOUND_ARROW_FACTOR
+        for xi, yi, ti in zip(x[sel], upper[sel], tails):
+            ax.annotate(
+                "", xy=(xi, ti), xytext=(xi, yi),
+                arrowprops=dict(arrowstyle="-|>", color=color, lw=0.9, mutation_scale=7,
+                                shrinkA=3.5, shrinkB=0),
+            )
+        fig = ax.figure
+        fig._factory6g_min_arrow_tail = min(
+            getattr(fig, "_factory6g_min_arrow_tail", np.inf), float(np.min(tails))
+        )
 
 
 def _plot_ber_publication(
@@ -153,6 +195,7 @@ def _plot_ber_publication(
             continue
         _draw_ber_series(ax, x, metric_map, name, stage_hint)
     style_ebno_axis(ax, ylabel="BER")  # caption is the title
+    _span_one_decade(ax)
     has_upper_bound = any(
         str(st) == POINT_STATUS_UPPER_BOUND_ONLY
         for m in ordered.values() for st in m.get("point_status", [])
