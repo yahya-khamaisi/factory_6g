@@ -37,6 +37,17 @@ def _round_list(values: Any, digits: int) -> list[Any]:
     return [None if not math.isfinite(v) else round(float(v), digits) for v in arr]
 
 
+def per_ut_block_flags(bits: np.ndarray, bits_hat: np.ndarray) -> list[str]:
+    """Per terminal, the codeword error flags packed into a hex string (codeword order: batch, stream)."""
+    blocks = np.any(np.not_equal(np.asarray(bits), np.asarray(bits_hat)), axis=-1)  # [B, U, ...]
+    per_ut = np.moveaxis(blocks, 1, 0).reshape(blocks.shape[1], -1)
+    return [np.packbits(row.astype(np.uint8)).tobytes().hex() for row in per_ut]
+
+
+def unpack_block_flags(hex_flags: str, num_codewords: int) -> np.ndarray:
+    return np.unpackbits(np.frombuffer(bytes.fromhex(hex_flags), dtype=np.uint8))[:num_codewords].astype(bool)
+
+
 def per_ut_error_stats(bits: np.ndarray, bits_hat: np.ndarray) -> dict[str, list[int]]:
     """Bit and block (codeword) errors per terminal; the terminal axis is dim 1."""
     diff = np.not_equal(np.asarray(bits), np.asarray(bits_hat))
@@ -127,6 +138,8 @@ class TraceRecorder:
         active = [int(v) > 0 for v in active_mask]
         # Inactive terminals carry no traffic, so their error counts are not evidence.
         masked = {key: [v if on else None for v, on in zip(vals, active)] for key, vals in stats.items()}
+        # Codeword-level outcomes, so two methods can be compared codeword by codeword (McNemar).
+        masked["block_error_flags"] = [f if on else None for f, on in zip(per_ut_block_flags(result["bits"], result["bits_hat"]), active)]
         if per_ut_power is None:
             power = [1.0 if on else 0.0 for on in active]
         else:

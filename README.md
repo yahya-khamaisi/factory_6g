@@ -250,6 +250,35 @@ image:
 docker run --rm -v "$PWD":/app -w /app --entrypoint python factory6g:latest scripts/tools/profile_batch_path.py --batches 10
 ```
 
+## Reliability Report And Provenance
+
+Every run writes `provenance.json` next to `simulation.log`: the config hash,
+a hash of the package source, the git commit, the command, library versions
+and the seed. Set `"deterministic": true` in `simulation` to ask TensorFlow for
+deterministic ops on final evidence runs (slower).
+
+For traced runs, the reliability report gives batch-level intervals, paired
+tests against a baseline and, over several seeds, the seed-level spread:
+
+```bash
+docker compose run --rm --entrypoint python simulation -m factory6g.analysis report results/<run_seed42> results/<run_seed43> --baseline round_robin
+```
+
+It writes `reliability_report.md`, a JSON file and CSV tables to
+`<first run>/reliability/`. Per point it reports:
+
+- BER with a batch-level 95 % interval, and BLER with a Clopper-Pearson
+  interval over codewords (optimistic, because codewords share a batch).
+- Status by bit errors and by block errors.
+- The paired per-batch BLER difference against the baseline, with normal and
+  bootstrap intervals and a paired-t p-value, Holm-corrected over Eb/N0.
+- An exact McNemar test over the codewords both methods carried.
+
+Across seeds it adds the mean and t-interval of per-seed BER, the seed
+standard deviation, the interquartile mean, and the probability of
+improvement over the baseline. `tests/test_analytic_anchors.py` checks the PHY
+against closed-form AWGN and Rayleigh combining results.
+
 ## Dataset, Training, And Reports
 
 Dataset and training workflows are documented in `data/README.md`. Keep those

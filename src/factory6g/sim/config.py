@@ -183,6 +183,8 @@ class SimulationConfig:
     plot_results: bool
     # Write a per-batch trace (trace_v1.jsonl.gz) next to each stage's results.
     trace: bool = False
+    # Ask TensorFlow for deterministic ops (slower); use for final evidence runs.
+    deterministic: bool = False
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "SimulationConfig":
@@ -199,6 +201,7 @@ class SimulationConfig:
             "output_dir",
             "plot_results",
             "trace",
+            "deterministic",
         }
         required: set[str] = set()
         _validate_keys("simulation", raw, allowed)
@@ -214,6 +217,7 @@ class SimulationConfig:
             output_dir=str(raw.get("output_dir", "results")),
             plot_results=_ensure_bool(raw.get("plot_results", True), "simulation.plot_results"),
             trace=_ensure_bool(raw.get("trace", False), "simulation.trace"),
+            deterministic=_ensure_bool(raw.get("deterministic", False), "simulation.deterministic"),
         )
 
 

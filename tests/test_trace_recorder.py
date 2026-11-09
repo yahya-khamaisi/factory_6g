@@ -68,6 +68,9 @@ def test_recorder_round_trip_masks_inactive_terminals(tmp_path):
     assert record["block_errors"] == [None, 1]
     assert record["power"] == [0.0, 0.5]
     assert record["decoder_iterations_mean"] == 4.0
+    assert record["block_error_flags"][0] is None
+    from factory6g.sim.trace import unpack_block_flags
+    assert unpack_block_flags(record["block_error_flags"][1], 1).tolist() == [True]
 
 
 def test_resume_drops_records_of_repeated_batches(tmp_path):

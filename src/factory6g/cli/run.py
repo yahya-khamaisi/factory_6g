@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import logging
+import os
 import time
 import random
 import re
@@ -346,6 +347,8 @@ def main() -> int:
         sys.stderr = _FilteredTeeStream(original_stderr, log_handle)
         print(f"Log file: {log_path.resolve()}")
 
+        if sim_config.deterministic:
+            os.environ["TF_DETERMINISTIC_OPS"] = "1"
         configure_env(force_cpu=sim_config.force_cpu, gpu_num=sim_config.gpu_id)
 
         import numpy as np
@@ -368,6 +371,16 @@ def main() -> int:
         np.random.seed(sim_config.seed)
         tf.random.set_seed(sim_config.seed)
         sionna.phy.config.seed = sim_config.seed
+        if sim_config.deterministic:
+            tf.config.experimental.enable_op_determinism()
+
+        from factory6g.sim.provenance import build_provenance, write_provenance
+
+        provenance_path = write_provenance(run_dir, build_provenance(
+            raw_config=raw_config, config_path=str(args.config), seed=sim_config.seed,
+            deterministic=sim_config.deterministic, argv=sys.argv,
+        ))
+        print(f"Provenance: {provenance_path}")
 
         from factory6g.sim.stages.common import fmt_elapsed
 
