@@ -1,0 +1,109 @@
+availability,device_class,ebno_db,label,latency_intervals,method,packets,packets_needed,reliability,reliability_hi,reliability_lo,seed,stage,survival_intervals,survival_violations,target,verdict
+0.775,cobot_motion,6.0,Cobot motion control,1,static,160,3000000,0.61875,0.6942851879708741,0.5387289586406112,42,resource_managers,1,9.0,0.999999,missed
+0.7,agv_control,6.0,Mobile robot control,2,static,159,300001,0.6981132075471698,0.7682941667808234,0.6203791315491581,42,resource_managers,1,7.0,0.99999,missed
+0.35,safety_wearable,6.0,Worker safety wearable,1,static,160,300001,0.19375,0.26359480304247396,0.13560293388458838,42,resource_managers,1,15.0,0.99999,missed
+0.85,condition_sensor,6.0,Condition monitoring,4,static,157,3000,0.8343949044585988,0.8888775862917523,0.7668418509078541,42,resource_managers,4,2.0,0.999,missed
+0.83125,cobot_motion,12.0,Cobot motion control,1,static,160,3000000,0.725,0.792537167328881,0.6489267975735085,42,resource_managers,1,5.0,0.999999,missed
+0.76875,agv_control,12.0,Mobile robot control,2,static,159,300001,0.7672955974842768,0.8305535542500481,0.6938015101491569,42,resource_managers,1,4.0,0.99999,missed
+0.6375,safety_wearable,12.0,Worker safety wearable,1,static,160,300001,0.425,0.5055126497740654,0.34731808352695975,42,resource_managers,1,20.0,0.99999,missed
+0.8875,condition_sensor,12.0,Condition monitoring,4,static,157,3000,0.8726114649681529,0.9204209121760127,0.8101344355301489,42,resource_managers,4,1.0,0.999,missed
+0.88125,cobot_motion,18.0,Cobot motion control,1,static,160,3000000,0.85,0.9014661102605646,0.7850816974709138,42,resource_managers,1,2.0,0.999999,missed
+0.8125,agv_control,18.0,Mobile robot control,2,static,159,300001,0.8113207547169812,0.8689297884403144,0.7417368302300092,42,resource_managers,1,3.0,0.99999,missed
+0.7375,safety_wearable,18.0,Worker safety wearable,1,static,160,300001,0.56875,0.6466884593114852,0.4882169319819389,42,resource_managers,1,8.0,0.99999,missed
+0.89375,condition_sensor,18.0,Condition monitoring,4,static,157,3000,0.8853503184713376,0.9306178410516364,0.824865984226938,42,resource_managers,4,1.0,0.999,missed
+0.675,cobot_motion,6.0,Cobot motion control,1,round_robin,160,3000000,0.3375,0.4163939992216899,0.2647527168217242,42,resource_managers,1,10.0,0.999999,missed
+0.6,agv_control,6.0,Mobile robot control,2,round_robin,159,300001,0.5974842767295597,0.6743809884093481,0.5168832704894426,42,resource_managers,1,10.0,0.99999,missed
+0.33125000000000004,safety_wearable,6.0,Worker safety wearable,1,round_robin,160,300001,0.1625,0.22896403864515194,0.1089811082347095,42,resource_managers,1,11.0,0.99999,missed
+0.83125,condition_sensor,6.0,Condition monitoring,4,round_robin,157,3000,0.7834394904458599,0.8451207095818871,0.7107471634251002,42,resource_managers,4,7.0,0.999,missed
+0.8625,cobot_motion,12.0,Cobot motion control,1,round_robin,160,3000000,0.43125,0.5117830680180611,0.35331154068851484,42,resource_managers,1,6.0,0.999999,missed
+0.7375,agv_control,12.0,Mobile robot control,2,round_robin,159,300001,0.7358490566037735,0.8025195407977288,0.6601675940515848,42,resource_managers,1,7.0,0.99999,missed
+0.49375,safety_wearable,12.0,Worker safety wearable,1,round_robin,160,300001,0.24375,0.3178101529107892,0.17943196085952418,42,resource_managers,1,19.0,0.99999,missed
+0.9875,condition_sensor,12.0,Condition monitoring,4,round_robin,157,3000,0.9745222929936306,0.9930155045628121,0.9360539066134125,42,resource_managers,4,2.0,0.999,missed
+0.8875,cobot_motion,18.0,Cobot motion control,1,round_robin,160,3000000,0.44375,0.5242872698578267,0.3653352667140715,42,resource_managers,1,4.0,0.999999,missed
+0.8375,agv_control,18.0,Mobile robot control,2,round_robin,159,300001,0.8364779874213837,0.8903143619931285,0.7696547461652687,42,resource_managers,1,5.0,0.99999,missed
+0.625,safety_wearable,18.0,Worker safety wearable,1,round_robin,160,300001,0.3125,0.39044575905861173,0.24165379202984924,42,resource_managers,1,13.0,0.99999,missed
+0.99375,condition_sensor,18.0,Condition monitoring,4,round_robin,157,3000,0.9872611464968153,0.9984535253679562,0.9547422400944148,42,resource_managers,4,1.0,0.999,missed
+0.69375,cobot_motion,6.0,Cobot motion control,1,max_throughput,160,3000000,0.45625,0.5367429799811371,0.3774076811951775,42,resource_managers,1,15.0,0.999999,missed
+0.6375,agv_control,6.0,Mobile robot control,2,max_throughput,159,300001,0.6352201257861635,0.7100152178237487,0.5552821096707378,42,resource_managers,1,13.0,0.99999,missed
+0.38749999999999996,safety_wearable,6.0,Worker safety wearable,1,max_throughput,160,300001,0.21875,0.2908683038156805,0.15734677020408241,42,resource_managers,1,14.0,0.99999,missed
+0.83125,condition_sensor,6.0,Condition monitoring,4,max_throughput,157,3000,0.7961783439490446,0.8562124457432008,0.7246234898585577,42,resource_managers,4,2.0,0.999,missed
+0.775,cobot_motion,12.0,Cobot motion control,1,max_throughput,160,3000000,0.5625,0.6406827103275581,0.4819587445432038,42,resource_managers,1,15.0,0.999999,missed
+0.6375,agv_control,12.0,Mobile robot control,2,max_throughput,159,300001,0.6352201257861635,0.7100152178237487,0.5552821096707378,42,resource_managers,1,17.0,0.99999,missed
+0.49375,safety_wearable,12.0,Worker safety wearable,1,max_throughput,160,300001,0.3125,0.39044575905861173,0.24165379202984924,42,resource_managers,1,21.0,0.99999,missed
+0.91875,condition_sensor,12.0,Condition monitoring,4,max_throughput,157,3000,0.8853503184713376,0.9306178410516364,0.824865984226938,42,resource_managers,4,3.0,0.999,missed
+0.75,cobot_motion,18.0,Cobot motion control,1,max_throughput,160,3000000,0.49375,0.5738221084747426,0.4139136576726889,42,resource_managers,1,21.0,0.999999,missed
+0.625,agv_control,18.0,Mobile robot control,2,max_throughput,159,300001,0.6226415094339622,0.6981901663147985,0.5424299447555,42,resource_managers,1,21.0,0.99999,missed
+0.58125,safety_wearable,18.0,Worker safety wearable,1,max_throughput,160,300001,0.3625,0.44211832654196054,0.28807845793944453,42,resource_managers,1,21.0,0.99999,missed
+0.95,condition_sensor,18.0,Condition monitoring,4,max_throughput,157,3000,0.9235668789808917,0.9598832729781774,0.8702932921601452,42,resource_managers,4,3.0,0.999,missed
+0.675,cobot_motion,6.0,Cobot motion control,1,pf,160,3000000,0.3375,0.4163939992216899,0.2647527168217242,42,resource_managers,1,10.0,0.999999,missed
+0.6,agv_control,6.0,Mobile robot control,2,pf,159,300001,0.5974842767295597,0.6743809884093481,0.5168832704894426,42,resource_managers,1,10.0,0.99999,missed
+0.33125000000000004,safety_wearable,6.0,Worker safety wearable,1,pf,160,300001,0.1625,0.22896403864515194,0.1089811082347095,42,resource_managers,1,11.0,0.99999,missed
+0.83125,condition_sensor,6.0,Condition monitoring,4,pf,157,3000,0.7834394904458599,0.8451207095818871,0.7107471634251002,42,resource_managers,4,7.0,0.999,missed
+0.7625,cobot_motion,12.0,Cobot motion control,1,pf,160,3000000,0.38125,0.46127104135938873,0.30571481202912587,42,resource_managers,1,7.0,0.999999,missed
+0.75,agv_control,12.0,Mobile robot control,2,pf,159,300001,0.7484276729559748,0.8137896543022355,0.673565970904342,42,resource_managers,1,6.0,0.99999,missed
+0.5375,safety_wearable,12.0,Worker safety wearable,1,pf,160,300001,0.26875,0.3444551017820737,0.2018213969992211,42,resource_managers,1,14.0,0.99999,missed
+0.95625,condition_sensor,12.0,Condition monitoring,4,pf,157,3000,0.9363057324840764,0.9690363211165398,0.8859847376156821,42,resource_managers,4,3.0,0.999,missed
+0.8875,cobot_motion,18.0,Cobot motion control,1,pf,160,3000000,0.44375,0.5242872698578267,0.3653352667140715,42,resource_managers,1,3.0,0.999999,missed
+0.875,agv_control,18.0,Mobile robot control,2,pf,159,300001,0.8742138364779874,0.9214449810137346,0.8124365332167027,42,resource_managers,1,6.0,0.99999,missed
+0.625,safety_wearable,18.0,Worker safety wearable,1,pf,160,300001,0.3125,0.39044575905861173,0.24165379202984924,42,resource_managers,1,13.0,0.99999,missed
+0.9875,condition_sensor,18.0,Condition monitoring,4,pf,157,3000,0.9745222929936306,0.9930155045628121,0.9360539066134125,42,resource_managers,4,2.0,0.999,missed
+0.70625,cobot_motion,6.0,Cobot motion control,1,wmmse,160,3000000,0.48125,0.5615101967790744,0.40169712286163256,42,resource_managers,1,16.0,0.999999,missed
+0.625,agv_control,6.0,Mobile robot control,2,wmmse,159,300001,0.6226415094339622,0.6981901663147985,0.5424299447555,42,resource_managers,1,11.0,0.99999,missed
+0.3375,safety_wearable,6.0,Worker safety wearable,1,wmmse,160,300001,0.1875,0.2567194821762398,0.1302258088343286,42,resource_managers,1,13.0,0.99999,missed
+0.825,condition_sensor,6.0,Condition monitoring,4,wmmse,157,3000,0.7834394904458599,0.8451207095818871,0.7107471634251002,42,resource_managers,4,5.0,0.999,missed
+0.775,cobot_motion,12.0,Cobot motion control,1,wmmse,160,3000000,0.5625,0.6406827103275581,0.4819587445432038,42,resource_managers,1,18.0,0.999999,missed
+0.5375,agv_control,12.0,Mobile robot control,2,wmmse,159,300001,0.5345911949685535,0.6139681142726663,0.4539009303048656,42,resource_managers,1,19.0,0.99999,missed
+0.50625,safety_wearable,12.0,Worker safety wearable,1,wmmse,160,300001,0.30625,0.3839222127631093,0.235916089214201,42,resource_managers,1,23.0,0.99999,missed
+0.8875,condition_sensor,12.0,Condition monitoring,4,wmmse,157,3000,0.8598726114649682,0.9100527663906898,0.7955644612122259,42,resource_managers,4,2.0,0.999,missed
+0.725,cobot_motion,18.0,Cobot motion control,1,wmmse,160,3000000,0.5125,0.5922005769066225,0.43232788550194334,42,resource_managers,1,21.0,0.999999,missed
+0.5,agv_control,18.0,Mobile robot control,2,wmmse,159,300001,0.4968553459119497,0.5771304148988317,0.4166996583010661,42,resource_managers,1,19.0,0.99999,missed
+0.60625,safety_wearable,18.0,Worker safety wearable,1,wmmse,160,300001,0.375,0.4548999036145032,0.2998228000599539,42,resource_managers,1,22.0,0.99999,missed
+0.95625,condition_sensor,18.0,Condition monitoring,4,wmmse,157,3000,0.9235668789808917,0.9598832729781774,0.8702932921601452,42,resource_managers,4,3.0,0.999,missed
+0.6375,cobot_motion,6.0,Cobot motion control,1,queue_aware,160,3000000,0.31875,0.39695448920130577,0.24740654083321634,42,resource_managers,1,12.0,0.999999,missed
+0.5875,agv_control,6.0,Mobile robot control,2,queue_aware,159,300001,0.5849056603773585,0.6623987334821189,0.5041870128101729,42,resource_managers,1,11.0,0.99999,missed
+0.33125000000000004,safety_wearable,6.0,Worker safety wearable,1,queue_aware,160,300001,0.1625,0.22896403864515194,0.1089811082347095,42,resource_managers,1,11.0,0.99999,missed
+0.83125,condition_sensor,6.0,Condition monitoring,4,queue_aware,157,3000,0.7834394904458599,0.8451207095818871,0.7107471634251002,42,resource_managers,4,7.0,0.999,missed
+0.8,cobot_motion,12.0,Cobot motion control,1,queue_aware,160,3000000,0.40625,0.4866273371549513,0.3294121983347449,42,resource_managers,1,9.0,0.999999,missed
+0.725,agv_control,12.0,Mobile robot control,2,queue_aware,159,300001,0.7232704402515723,0.791178257524629,0.646838877550008,42,resource_managers,1,8.0,0.99999,missed
+0.51875,safety_wearable,12.0,Worker safety wearable,1,queue_aware,160,300001,0.25625,0.3311679200835579,0.1905905853894267,42,resource_managers,1,16.0,0.99999,missed
+0.95625,condition_sensor,12.0,Condition monitoring,4,queue_aware,157,3000,0.9363057324840764,0.9690363211165398,0.8859847376156821,42,resource_managers,4,3.0,0.999,missed
+0.89375,cobot_motion,18.0,Cobot motion control,1,queue_aware,160,3000000,0.45,0.5305211628364646,0.371365414333545,42,resource_managers,1,4.0,0.999999,missed
+0.85625,agv_control,18.0,Mobile robot control,2,queue_aware,159,300001,0.8553459119496856,0.9060387169967279,0.7908942943754459,42,resource_managers,1,6.0,0.99999,missed
+0.6375,safety_wearable,18.0,Worker safety wearable,1,queue_aware,160,300001,0.31875,0.39695448920130577,0.24740654083321634,42,resource_managers,1,15.0,0.99999,missed
+0.9875,condition_sensor,18.0,Condition monitoring,4,queue_aware,157,3000,0.9745222929936306,0.9930155045628121,0.9360539066134125,42,resource_managers,4,2.0,0.999,missed
+0.63125,cobot_motion,6.0,Cobot motion control,1,drl,160,3000000,0.36875,0.44851570877097974,0.2939439691372321,42,resource_managers,1,18.0,0.999999,missed
+0.6125,agv_control,6.0,Mobile robot control,2,drl,159,300001,0.610062893081761,0.6863117559616858,0.5296306442712553,42,resource_managers,1,16.0,0.99999,missed
+0.38125,safety_wearable,6.0,Worker safety wearable,1,drl,160,300001,0.20625,0.27727558821023823,0.14642942080631943,42,resource_managers,1,16.0,0.99999,missed
+0.8125,condition_sensor,6.0,Condition monitoring,4,drl,157,3000,0.7707006369426752,0.8339387297074186,0.6969584435720269,42,resource_managers,4,4.0,0.999,missed
+0.73125,cobot_motion,12.0,Cobot motion control,1,drl,160,3000000,0.425,0.5055126497740654,0.34731808352695975,42,resource_managers,1,19.0,0.999999,missed
+0.625,agv_control,12.0,Mobile robot control,2,drl,159,300001,0.6226415094339622,0.6981901663147985,0.5424299447555,42,resource_managers,1,20.0,0.99999,missed
+0.51875,safety_wearable,12.0,Worker safety wearable,1,drl,160,300001,0.2875,0.3642601757874507,0.21879590454948888,42,resource_managers,1,23.0,0.99999,missed
+0.9375,condition_sensor,12.0,Condition monitoring,4,drl,157,3000,0.910828025477707,0.9503886619909485,0.854910859396983,42,resource_managers,4,3.0,0.999,missed
+0.8625,cobot_motion,18.0,Cobot motion control,1,drl,160,3000000,0.45,0.5305211628364646,0.371365414333545,42,resource_managers,1,9.0,0.999999,missed
+0.80625,agv_control,18.0,Mobile robot control,2,drl,159,300001,0.8050314465408805,0.8635171477924822,0.7348214238541464,42,resource_managers,1,15.0,0.99999,missed
+0.59375,safety_wearable,18.0,Worker safety wearable,1,drl,160,300001,0.3125,0.39044575905861173,0.24165379202984924,42,resource_managers,1,18.0,0.99999,missed
+0.98125,condition_sensor,18.0,Condition monitoring,4,drl,157,3000,0.9681528662420382,0.9895800084731035,0.9272468189779332,42,resource_managers,4,2.0,0.999,missed
+0.63125,cobot_motion,6.0,Cobot motion control,1,reliability_drl,160,3000000,0.39375,0.473974624625826,0.3175378681808335,42,resource_managers,1,18.0,0.999999,missed
+0.5125,agv_control,6.0,Mobile robot control,2,reliability_drl,159,300001,0.5094339622641509,0.5894581613825189,0.4290516162953206,42,resource_managers,1,20.0,0.99999,missed
+0.39375000000000004,safety_wearable,6.0,Worker safety wearable,1,reliability_drl,160,300001,0.21875,0.2908683038156805,0.15734677020408241,42,resource_managers,1,13.0,0.99999,missed
+0.85,condition_sensor,6.0,Condition monitoring,4,reliability_drl,157,3000,0.8152866242038217,0.8726667976003576,0.7456153137904209,42,resource_managers,4,2.0,0.999,missed
+0.46875,cobot_motion,12.0,Cobot motion control,1,reliability_drl,160,3000000,0.25625,0.3311679200835579,0.1905905853894267,42,resource_managers,1,23.0,0.999999,missed
+0.40625,agv_control,12.0,Mobile robot control,2,reliability_drl,159,300001,0.4025157232704403,0.48311672951055745,0.32561901159065193,42,resource_managers,1,22.0,0.99999,missed
+0.625,safety_wearable,12.0,Worker safety wearable,1,reliability_drl,160,300001,0.40625,0.4866273371549513,0.3294121983347449,42,resource_managers,1,22.0,0.99999,missed
+0.975,condition_sensor,12.0,Condition monitoring,4,reliability_drl,157,3000,0.9617834394904459,0.9858482040447706,0.918677069628995,42,resource_managers,4,1.0,0.999,missed
+0.34375,cobot_motion,18.0,Cobot motion control,1,reliability_drl,160,3000000,0.1875,0.2567194821762398,0.1302258088343286,42,resource_managers,1,20.0,0.999999,missed
+0.38749999999999996,agv_control,18.0,Mobile robot control,2,reliability_drl,159,300001,0.3836477987421384,0.46397625183876784,0.3077424348226757,42,resource_managers,1,22.0,0.99999,missed
+0.69375,safety_wearable,18.0,Worker safety wearable,1,reliability_drl,160,300001,0.475,0.5553363440929902,0.39560677353528945,42,resource_managers,1,16.0,0.99999,missed
+0.9625,condition_sensor,18.0,Condition monitoring,4,reliability_drl,157,3000,0.9299363057324841,0.9645077053468706,0.8780960258628248,42,resource_managers,4,2.0,0.999,missed
+0.69375,cobot_motion,6.0,Cobot motion control,1,constrained_drl,160,3000000,0.45625,0.5367429799811371,0.3774076811951775,42,resource_managers,1,16.0,0.999999,missed
+0.4375,agv_control,6.0,Mobile robot control,2,constrained_drl,159,300001,0.4339622641509434,0.5147630147522054,0.35566958389837494,42,resource_managers,1,18.0,0.99999,missed
+0.30625,safety_wearable,6.0,Worker safety wearable,1,constrained_drl,160,300001,0.1625,0.22896403864515194,0.1089811082347095,42,resource_managers,1,13.0,0.99999,missed
+0.85,condition_sensor,6.0,Condition monitoring,4,constrained_drl,157,3000,0.8280254777070064,0.8835029564997278,0.7597385026779613,42,resource_managers,4,2.0,0.999,missed
+0.59375,cobot_motion,12.0,Cobot motion control,1,constrained_drl,160,3000000,0.3625,0.44211832654196054,0.28807845793944453,42,resource_managers,1,25.0,0.999999,missed
+0.40625,agv_control,12.0,Mobile robot control,2,constrained_drl,159,300001,0.4025157232704403,0.48311672951055745,0.32561901159065193,42,resource_managers,1,24.0,0.99999,missed
+0.48750000000000004,safety_wearable,12.0,Worker safety wearable,1,constrained_drl,160,300001,0.28125,0.3576747841003344,0.21312111812155637,42,resource_managers,1,24.0,0.99999,missed
+0.9375,condition_sensor,12.0,Condition monitoring,4,constrained_drl,157,3000,0.9235668789808917,0.9598832729781774,0.8702932921601452,42,resource_managers,4,2.0,0.999,missed
+0.8625,cobot_motion,18.0,Cobot motion control,1,constrained_drl,160,3000000,0.66875,0.7410437759493043,0.590071599294406,42,resource_managers,1,10.0,0.999999,missed
+0.05625000000000002,agv_control,18.0,Mobile robot control,2,constrained_drl,159,300001,0.050314465408805034,0.0967305427342864,0.021969552431371997,42,resource_managers,1,5.0,0.99999,missed
+0.25625,safety_wearable,18.0,Worker safety wearable,1,constrained_drl,160,300001,0.125,0.18643318962962785,0.07805281139122083,42,resource_managers,1,20.0,0.99999,missed
+1.0,condition_sensor,18.0,Condition monitoring,4,constrained_drl,157,3000,1.0,1.0,0.9767778353966748,42,resource_managers,4,0.0,0.999,inconclusive
