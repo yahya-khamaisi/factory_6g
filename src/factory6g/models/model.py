@@ -69,6 +69,11 @@ class Model:
             channel_estimator=self._build_channel_estimator(),
         )
 
+    @property
+    def last_large_scale(self) -> dict | None:
+        """Terminal positions, LOS flags and gains of the latest prepared batch."""
+        return self._channel.last_large_scale
+
     def _build_channel_estimator(self):
         if self.perfect_csi:
             return None

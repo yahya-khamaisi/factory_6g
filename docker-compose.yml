@@ -33,6 +33,18 @@ services:
     entrypoint: ["python", "-m", "factory6g.cli.visualize"]
     command: ["--factory-size", "s,m,l,apple"]
 
+  viewer:              # Run viewer + Sionna RT 2.x radio maps; no TensorFlow (Dockerfile.viz)
+    build:
+      context: .
+      dockerfile: Dockerfile.viz
+    image: factory6g-viz:latest
+    volumes:
+      - ./results:/app/results
+      - ./data:/app/data:ro          # channel bank manifest: hall geometry for the viewer
+      - ./src:/app/src:ro            # live package source
+    ports:
+      - "8765:8765"
+
   train-estimator:     # Train the NeuralChannelEstimator inside Docker
     build: .
     image: factory6g:latest

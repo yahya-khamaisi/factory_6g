@@ -183,6 +183,43 @@ Key metrics:
 For publication-style reliability comparisons, prefer the confidence-aware BER
 plot and inspect `ber_upper_confidence` alongside raw `ber`.
 
+## Per-Batch Trace And Run Viewer
+
+Set `"trace": true` in the `simulation` section to make every stage also write
+`trace_v1.jsonl.gz` next to `stage_results_v2.json`. Per batch and Eb/No point
+it records the shared hall draw (terminal positions, LOS flags, large-scale
+gains); per method it records which terminals were scheduled, their power, and
+their bit and block errors. The recorder only reads what the stage already
+computed, so a traced run gives the same results as an untraced one
+(`tests/test_trace_recorder.py` checks this on the real PHY). It is off by
+default, so locked runs are unaffected.
+
+The viewer runs in its own TensorFlow-free image (`Dockerfile.viz`, Sionna RT
+2.2). Build it once, export a traced run, then serve it:
+
+```bash
+docker compose build viewer
+```
+
+```bash
+docker compose run --rm viewer export results/<run> --radio-map
+```
+
+```bash
+docker compose run --rm --service-ports viewer serve results/<run>/viewer
+```
+
+Open http://localhost:8765. `--radio-map` traces a Sionna RT path-gain map of
+the hall at terminal height (a few seconds on CPU for the 15 m hall). The
+viewer has four views:
+
+- **Floor:** the hall, terminals and scheduled links for one batch.
+- **Timeline:** who was scheduled in each batch, and how BER converges.
+- **Compare:** BER with batch-level intervals, and the BLER difference paired
+  against a baseline method.
+- **Run and checks:** whether the trace sums to the stage results, and how
+  much evidence the run has.
+
 ## Dataset, Training, And Reports
 
 Dataset and training workflows are documented in `data/README.md`. Keep those

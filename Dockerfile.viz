@@ -1,0 +1,28 @@
+# Run viewer and Sionna RT 2.x rendering. No TensorFlow: the simulation keeps its
+# own image (Dockerfile, sionna 1.2.1 on TF 2.15); this one only reads traces,
+# traces radio maps and renders scenes.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# llvm: Dr.Jit's CPU backend for Sionna RT; libatomic1: needed by the arm64 Dr.Jit wheel.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        llvm \
+        libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV MPLBACKEND=Agg
+
+RUN pip install --no-cache-dir \
+        "sionna-rt==2.2.0" \
+        "numpy>=1.26,<2.0" \
+        "matplotlib>=3.10"
+
+COPY pyproject.toml .
+COPY src/ src/
+# No dependencies from pyproject: this only wires up the factory6g package.
+RUN pip install --no-cache-dir --no-deps -e .
+
+EXPOSE 8765
+ENTRYPOINT ["python", "-m", "factory6g.viewer"]
+CMD ["--help"]

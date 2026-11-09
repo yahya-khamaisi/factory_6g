@@ -6,6 +6,7 @@ from typing import Any
 
 from factory6g.models.model import Model
 from factory6g.sim.config import Factory6GConfig
+from factory6g.sim.trace import make_trace_recorder, trace_meta
 
 from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
 from .common import (
@@ -90,6 +91,14 @@ def run_estimator_stage(
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
             )
 
+    trace = make_trace_recorder(
+        config.simulation.trace,
+        checkpoint_dir,
+        stage="estimators",
+        meta=trace_meta(config, methods=methods),
+        resume_from_batch=start_batch_index if start_batch_index > 0 else None,
+    )
+
     total_points = len(methods) * len(ebno_db_range)
     stage_start = time.perf_counter()
     for batch_index in range(start_batch_index, config.monte_carlo.max_batches):
@@ -120,6 +129,7 @@ def run_estimator_stage(
                 ebno_db=ebno_db,
                 include_feedback=False,
             )
+            trace.record_context(batch_index, ebno_db, getattr(shared_context_model, "last_large_scale", None))
             for method, model in models.items():
                 stats = point_state[method][ebno_index]
                 if stats["done"]:
@@ -131,6 +141,15 @@ def run_estimator_stage(
                 elapsed = time.perf_counter() - method_start
                 runtime_totals_sec[method] += elapsed
                 stats["runtime_sec"] += elapsed
+                trace.record_method(
+                    batch_index,
+                    ebno_db,
+                    method,
+                    result=result,
+                    active_mask=[1] * int(result["bits"].shape[1]),
+                    per_ut_power=None,
+                    runtime_sec=elapsed,
+                )
 
                 batch_stats = extract_error_stats(result["bits"], result["bits_hat"])
                 stats["errors"] += batch_stats["bit_errors"]
@@ -181,6 +200,7 @@ def run_estimator_stage(
                     stats["done"] = True
                     stats["stop_reason"] = stop_reason
         print(f"Done ({time.time() - batch_start:.2f}s)")
+        trace.flush()
         if checkpoint_dir is not None:
             save_checkpoint(
                 checkpoint_dir,

@@ -19,6 +19,7 @@ from typing import Any
 from factory6g.models.model import Model
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.sim.config import Factory6GConfig
+from factory6g.sim.trace import make_trace_recorder, trace_meta
 
 from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
 from .common import (
@@ -110,6 +111,14 @@ def run_coupled_stage(
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
             )
 
+    trace = make_trace_recorder(
+        config.simulation.trace,
+        checkpoint_dir,
+        stage="coupled",
+        meta=trace_meta(config, methods=methods),
+        resume_from_batch=start_batch_index if start_batch_index > 0 else None,
+    )
+
     total_points = len(methods) * len(ebno_db_range)
     stage_start = time.perf_counter()
     for batch_index in range(start_batch_index, config.monte_carlo.max_batches):
@@ -136,6 +145,7 @@ def run_coupled_stage(
                 ebno_db=ebno_db,
                 include_feedback=False,
             )
+            trace.record_context(batch_index, ebno_db, getattr(context_model, "last_large_scale", None))
             for est, model in models.items():
                 open_methods = [
                     coupled_method_key(est, sch)
@@ -166,6 +176,15 @@ def run_coupled_stage(
                     stats["runtime_sec"] += elapsed
 
                     active_ut_mask = transmitted_ut_mask(directives, num_ut=num_ut)
+                    trace.record_method(
+                        batch_index,
+                        ebno_db,
+                        method,
+                        result=result,
+                        active_mask=active_ut_mask,
+                        per_ut_power=getattr(directives, "per_ut_power", None),
+                        runtime_sec=elapsed,
+                    )
                     batch_stats = extract_error_stats(result["bits"], result["bits_hat"], ut_mask=active_ut_mask)
                     stats["errors"] += batch_stats["bit_errors"]
                     if batch_stats["bit_errors"] > 0:
@@ -205,6 +224,7 @@ def run_coupled_stage(
                         stats["done"] = True
                         stats["stop_reason"] = stop_reason
         print(f"Done ({time.time() - batch_start:.2f}s)")
+        trace.flush()
         if checkpoint_dir is not None:
             save_checkpoint(
                 checkpoint_dir,
