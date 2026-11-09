@@ -375,6 +375,24 @@ def save_bank(path: Path, splits: dict[str, tuple[np.ndarray, TraceResult]], man
     Path(str(path) + ".manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
+def subcarrier_frequencies(num_subcarriers: int, spacing: float) -> np.ndarray:
+    """Baseband subcarrier frequencies, as sionna.phy.channel.subcarrier_frequencies (no TensorFlow)."""
+    n = int(num_subcarriers)
+    start = -(n // 2) if n % 2 == 0 else -((n - 1) // 2)
+    return (np.arange(start, start + n, dtype=np.float64) * float(spacing)).astype(np.float32)
+
+
+def tracer_versions() -> dict[str, str]:
+    out = {}
+    for name in ("sionna.rt", "mitsuba", "drjit"):
+        try:
+            module = __import__(name, fromlist=["__version__"])
+            out[name] = str(getattr(module, "__version__", "unknown"))
+        except Exception:
+            pass
+    return out
+
+
 def load_bank_split(path: str | Path, split: str) -> np.ndarray:
     """Uplink frequency responses ``[N, num_bs_ant, F]`` for one split."""
     with np.load(path) as data:

@@ -60,12 +60,14 @@ def main() -> None:
     rt_cfg = raw["ray_tracing"]
     system = raw["system"]
 
+    import mitsuba as mi
+
+    if mi.variant() is None:  # Sionna RT 2.x without a GPU: Dr.Jit's LLVM (CPU) backend
+        mi.set_variant("llvm_ad_mono_polarized")
     hall = rt.HallSpec.from_config(raw, layout_seed=args.layout_seed)
     scene = rt.build_scene(hall)
 
-    from sionna.phy.channel import subcarrier_frequencies
-
-    freqs = subcarrier_frequencies(int(system["fft_size"]), float(system["subcarrier_spacing"])).numpy()
+    freqs = rt.subcarrier_frequencies(int(system["fft_size"]), float(system["subcarrier_spacing"]))
     rng = np.random.default_rng(args.position_seed)
 
     splits = {}
@@ -109,6 +111,7 @@ def main() -> None:
         "subcarrier_spacing": float(system["subcarrier_spacing"]),
         "array_shape": "[N, num_bs_ant, fft_size] uplink CFR, delays normalised, not power-normalised",
         "stats": stats,
+        "tracer": rt.tracer_versions(),
     }
     rt.save_bank(Path(args.output), splits, manifest)
     print(f"Wrote {args.output}")
