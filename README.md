@@ -256,11 +256,20 @@ docker run --rm -v "$PWD":/app -w /app --entrypoint python factory6g:latest scri
 one page, with no export step:
 
 ```bash
-docker compose up monitor                    # http://localhost:8766, watches results/
+docker compose up monitor                    # http://localhost:8766, watches results/ (hall from data/)
 # several worktrees or machines' result folders at once:
-python -m factory6g.viewer monitor results ../factory_6g_phase4/results --port 8766
+python -m factory6g.viewer monitor results ../factory_6g_phase4/results --data data --port 8766
 ```
 
+* **Factory hall** (top): the latest batch of any run, live, as a 2D plan and
+  a 3D view side by side (drag to turn and tilt; it rotates slowly until
+  paused). Both show the room and machines from the channel-bank manifest, the
+  ceiling base station, the terminal drop of the latest batch (filled: line of
+  sight, hollow: none), earlier drops faintly, and one link per scheduled
+  terminal, green when its packet decoded and red when it failed, wider at
+  higher power. Below them, one card per terminal: position, path, large-scale
+  gain, power, how often it has been scheduled and its block error rate so far.
+  Pick the run, method and Eb/N0 above the views.
 * **Simulations**: one card per traced run (runs with `simulation.trace` on),
   with status (running, stopped, finished), the stack that produced it
   (TensorFlow / Sionna 1.2.1 or PyTorch / Sionna 2.2, from `provenance.json`),

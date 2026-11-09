@@ -72,6 +72,12 @@ class LiveTrace:
         self.last_batch = -1
         self.records = 0
         self.version = 0
+        # Hall state for the 2D/3D views: one large-scale drop per batch (shared by every
+        # Eb/N0 point of the batch), the latest record per (method, Eb/N0), and per-terminal
+        # outcome counts per (method, Eb/N0).
+        self.drops: dict[int, dict[str, Any]] = {}
+        self.latest: dict[tuple[str, float], dict[str, Any]] = {}
+        self.per_ut: dict[tuple[str, float], dict[str, list[int]]] = {}
 
     def poll(self) -> bool:
         """Read members completed since the last poll; True when anything changed."""
@@ -112,9 +118,26 @@ class LiveTrace:
         if kind == "header":
             self.header = r
             return
+        if kind == "context":
+            if "positions" in r and int(r["batch"]) not in self.drops:
+                self.drops[int(r["batch"])] = {k: r.get(k) for k in ("batch", "positions", "los", "gain_db", "industry")}
+            return
         if kind != "method":
             return
         self.records += 1
+        key = (str(r["method"]), float(r["ebno_db"]))
+        # Records always carry "active"; a terminal without traffic has None counts, so fall back to that.
+        active = r.get("active") or [v is not None for v in r["bit_errors"]]
+        self.latest[key] = {**{k: r.get(k) for k in ("batch", "power", "block_errors", "blocks", "bit_errors", "bits")}, "active": active}
+        ut = self.per_ut.setdefault(key, {"scheduled": [], "blocks": [], "block_errors": []})
+        for i, on in enumerate(active):
+            for name in ("scheduled", "blocks", "block_errors"):
+                if len(ut[name]) <= i:
+                    ut[name].append(0)
+            if on:
+                ut["scheduled"][i] += 1
+                ut["blocks"][i] += int(r["blocks"][i] or 0)
+                ut["block_errors"][i] += int(r["block_errors"][i] or 0)
         self.last_batch = max(self.last_batch, int(r["batch"]))
         c = self.cells.setdefault((str(r["method"]), float(r["ebno_db"])), _Cell())
         c.bit_errors += _active_sum(r["bit_errors"])
@@ -145,6 +168,31 @@ class LiveTrace:
             step = max(1, len(series) // max_points)
             out[m] = [None if v != v else v for v in series[::step]]
         return out
+
+
+    def scene(self, ebno_db: float, method: str | None, max_drops: int = 400) -> dict[str, Any]:
+        meta = (self.header or {}).get("meta", {})
+        methods = list(meta.get("methods", []))
+        method = method if method in methods else (methods[0] if methods else None)
+        latest = self.latest.get((method, float(ebno_db))) if method else None
+        batch = latest["batch"] if latest else (max(self.drops) if self.drops else None)
+        drops = [self.drops[b] for b in sorted(self.drops)][-max_drops:]
+        return {"method": method, "methods": methods, "ebno_db": float(ebno_db), "batch": batch,
+                "num_ut": meta.get("num_ut"), "large_scale_model": meta.get("large_scale_model"),
+                "drop": self.drops.get(batch) if batch is not None else None, "history": drops,
+                "latest": latest, "per_ut": self.per_ut.get((method, float(ebno_db))) if method else None,
+                "latest_all": {m: self.latest.get((m, float(ebno_db))) for m in methods}}
+
+
+def load_hall(data_roots: Iterable[Path], bank: str) -> dict[str, Any] | None:
+    """Room, machines and base station from the channel-bank manifest (as the run viewer uses)."""
+    name = Path(bank).name + ".manifest.json"
+    for root in data_roots:
+        for cand in (Path(root) / name, Path(root) / Path(bank).with_name(name), Path(root) / "data" / name):
+            if cand.exists():
+                hall = json.loads(cand.read_text(encoding="utf-8"))["hall"]
+                return {k: hall.get(k) for k in ("room_dimensions", "machines", "bs_position", "ut_height", "num_bs_ant", "carrier_frequency")}
+    return None
 
 
 def _framework(prov: dict[str, Any]) -> dict[str, str]:
@@ -180,8 +228,11 @@ def _last_progress(log: Path) -> dict[str, Any] | None:
 class RunWatcher:
     """Finds runs under one or more results roots and keeps their live state."""
 
-    def __init__(self, roots: Iterable[Path], *, since_hours: float = 24.0, training_iterations: int = 150) -> None:
+    def __init__(self, roots: Iterable[Path], *, since_hours: float = 24.0, training_iterations: int = 150,
+                 data_roots: Iterable[Path] = ()) -> None:
         self.roots = [Path(r) for r in roots]
+        self.data_roots = [Path(r) for r in data_roots]
+        self._halls: dict[str, dict[str, Any] | None] = {}
         self.since_s = since_hours * 3600.0
         self.training_iterations = int(training_iterations)
         self.traces: dict[Path, LiveTrace] = {}
@@ -291,6 +342,23 @@ class RunWatcher:
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
             return dict(self._snapshot)
+
+    def _trace(self, run_id: str, stage_dir: str) -> LiveTrace:
+        root_name, _, rel = run_id.partition("/")
+        root = next((r for r in self.roots if r.name == root_name), None)
+        if root is None:
+            raise KeyError(run_id)
+        tr = self.traces.get(root / rel / stage_dir / TRACE_FILENAME)
+        if tr is None:
+            raise KeyError(run_id)
+        return tr
+
+    def scene(self, run_id: str, stage_dir: str, ebno_db: float, method: str | None) -> dict[str, Any]:
+        tr = self._trace(run_id, stage_dir)
+        bank = (tr.header or {}).get("meta", {}).get("rt_channel_bank", "data/rt_channel_bank.npz")
+        if bank not in self._halls:
+            self._halls[bank] = load_hall(self.data_roots, bank)
+        return {"run": run_id, "stage": stage_dir, "hall": self._halls[bank], **tr.scene(ebno_db, method)}
 
     def convergence(self, run_id: str, stage_dir: str, ebno_db: float) -> dict[str, Any]:
         root_name, _, rel = run_id.partition("/")

@@ -113,7 +113,7 @@ def _monitor(args: argparse.Namespace) -> int:
     from factory6g.viewer.live import RunWatcher
 
     watcher = RunWatcher([Path(r) for r in args.roots], since_hours=args.since_hours,
-                         training_iterations=args.training_iterations)
+                         training_iterations=args.training_iterations, data_roots=[Path(d) for d in args.data])
     watcher.poll()
     stop = threading.Event()
 
@@ -151,6 +151,12 @@ def _monitor(args: argparse.Namespace) -> int:
                 q = parse_qs(url.query)
                 try:
                     return self._json(watcher.convergence(q["run"][0], q["stage"][0], float(q["eb"][0])))
+                except (KeyError, ValueError, IndexError):
+                    return self._json({"error": "unknown run, stage or Eb/N0"}, 404)
+            if url.path == "/api/scene":
+                q = parse_qs(url.query)
+                try:
+                    return self._json(watcher.scene(q["run"][0], q["stage"][0], float(q["eb"][0]), q.get("method", [None])[0]))
                 except (KeyError, ValueError, IndexError):
                     return self._json({"error": "unknown run, stage or Eb/N0"}, 404)
             if url.path == "/api/stream":
@@ -221,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
     mon.add_argument("--port", type=int, default=8766)
     mon.add_argument("--interval", type=float, default=2.0, help="Seconds between polls of the run folders.")
     mon.add_argument("--since-hours", type=float, default=24.0, help="Also list finished runs written within this many hours.")
+    mon.add_argument("--data", nargs="*", default=["data"], help="Folders holding the channel-bank manifest (hall geometry for the 2D/3D views).")
     mon.add_argument("--training-iterations", type=int, default=150, help="Planned PPO iterations, for training progress.")
     mon.set_defaults(func=_monitor)
     args = parser.parse_args(argv)

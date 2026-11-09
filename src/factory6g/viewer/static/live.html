@@ -15,6 +15,9 @@
       <span><strong>Factory6G</strong><small>Live monitor</small></span>
     </div>
     <div class="live-conn" id="conn" role="status" aria-live="polite"><span class="pulse"></span><span id="conn-text">connecting…</span></div>
+    <nav class="jump" aria-label="Sections">
+      <a href="#sec-hall">Hall</a><a href="#sec-runs">Runs</a><a href="#sec-overlay">Across runs</a><a href="#sec-train">Training</a>
+    </nav>
     <div class="live-counts" id="counts"></div>
     <div class="seg" role="group" aria-label="Filter runs" id="filter">
       <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -25,24 +28,43 @@
   </header>
 
   <main class="live-main">
-    <section aria-labelledby="h-sims">
-      <h1 id="h-sims" class="sec">Simulations <small>BER per Eb/N0 so far; curves move as batches arrive</small></h1>
+    <section id="sec-hall" class="panel" aria-labelledby="h-hall">
+      <div class="panel-head">
+        <h1 id="h-hall">Factory hall <small>latest batch, live: terminal drop, scheduled links and whether each packet got through</small></h1>
+      </div>
+      <div class="controls">
+        <label>Run <select id="hall-run"></select></label>
+        <label>Method <select id="hall-method"></select></label>
+        <label>Eb/N0 <select id="hall-eb"></select></label>
+        <div class="seg" role="group" aria-label="Hall view" id="hall-view">
+          <button type="button" data-view="both" aria-pressed="true">2D + 3D</button>
+          <button type="button" data-view="2d" aria-pressed="false">2D plan</button>
+          <button type="button" data-view="3d" aria-pressed="false">3D</button>
+        </div>
+      </div>
+      <div id="hall-body"></div>
+    </section>
+
+    <section id="sec-runs" aria-labelledby="h-sims">
+      <h1 id="h-sims" class="sec">Simulation runs <small>BER per Eb/N0 so far; curves redraw as each batch lands. Click a run for details.</small></h1>
       <div id="runs" class="run-grid"></div>
     </section>
 
-    <section id="detail" class="card detail" hidden aria-live="polite"></section>
+    <section id="detail" class="panel detail" hidden aria-live="polite"></section>
 
-    <section aria-labelledby="h-overlay" class="card">
-      <h2 id="h-overlay">Across runs <small>one method, every run that has it: seeds and stacks side by side</small></h2>
-      <div class="ctx-row overlay-ctl">
+    <section id="sec-overlay" class="panel" aria-labelledby="h-overlay">
+      <div class="panel-head">
+        <h1 id="h-overlay">Across runs <small>one method from every run that has it: seeds and stacks side by side</small></h1>
+      </div>
+      <div class="controls">
         <label>Stage <select id="ov-stage"></select></label>
         <label>Method <select id="ov-method"></select></label>
-        <span class="legend" id="ov-legend"></span>
       </div>
       <div id="overlay"></div>
+      <div class="legend" id="ov-legend"></div>
     </section>
 
-    <section aria-labelledby="h-train">
+    <section id="sec-train" aria-labelledby="h-train">
       <h1 id="h-train" class="sec">Training <small>PPO logs, one point per iteration</small></h1>
       <div id="training" class="run-grid"></div>
     </section>

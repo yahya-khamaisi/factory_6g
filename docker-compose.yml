@@ -63,6 +63,7 @@ services:
     image: factory6g-viz:latest
     volumes:
       - ./results:/app/results:ro    # read-only: the monitor never writes into a run
+      - ./data:/app/data:ro          # channel-bank manifest: hall geometry for the 2D/3D views
       - ./src:/app/src:ro
     entrypoint: ["python", "-m", "factory6g.viewer"]
     command: ["monitor", "results", "--port", "8766"]

@@ -92,3 +92,30 @@ def test_training_log_is_followed(tmp_path):
     assert t["iteration"] == 3 and t["seconds_per_iteration"] == 10.0 and t["eta_s"] == 70.0
     assert t["lagrange"] == {"0.0": 1.0} and t["status"] == "running"
     assert time.time() - t["age_s"] > 0
+
+
+def test_scene_keeps_the_latest_drop_and_per_terminal_outcomes(tmp_path):
+    run = tmp_path / "results" / "20261109_130000_static_rayleigh_qpsk_s"
+    meta = {"methods": ["static"], "ebno_db_range": [6.0], "num_ut": 2, "rt_channel_bank": "data/rt_channel_bank.npz"}
+    rec = TraceRecorder(run / "resource_managers", stage="resource_managers", meta=meta)
+    for b in range(3):
+        rec.record_context(b, 6.0, {"positions": [[b, 0.0, 1.0], [0.0, b, 1.0]], "los": [True, False], "gain_db": [1.0, -2.0]})
+        bits = np.zeros((4, 2, 1, 32), dtype=np.int32)
+        bits_hat = bits.copy()
+        if b == 2:
+            bits_hat[0, 1, 0, 0] = 1  # UT1 fails in the last batch
+        rec.record_method(b, 6.0, "static", result={"bits": bits, "bits_hat": bits_hat}, active_mask=[1, 1], per_ut_power=[1.0, 0.5], runtime_sec=0.0)
+        rec.flush()
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "rt_channel_bank.npz.manifest.json").write_text(json.dumps({"hall": {"room_dimensions": [15, 15, 5], "machines": [], "bs_position": [0, 0, 4], "ut_height": 1.0}}))
+    watcher = RunWatcher([tmp_path / "results"], data_roots=[data])
+    watcher.poll()
+    (r,) = watcher.snapshot()["runs"]
+    sc = watcher.scene(r["id"], "resource_managers", 6.0, None)
+    assert sc["method"] == "static" and sc["batch"] == 2
+    assert sc["drop"]["positions"][0] == [2.0, 0.0, 1.0] and sc["drop"]["los"] == [True, False]
+    assert len(sc["history"]) == 3
+    assert sc["latest"]["block_errors"] == [0, 1] and sc["latest"]["power"] == [1.0, 0.5]
+    assert sc["per_ut"] == {"scheduled": [3, 3], "blocks": [12, 12], "block_errors": [0, 1]}
+    assert sc["hall"]["room_dimensions"] == [15, 15, 5]
