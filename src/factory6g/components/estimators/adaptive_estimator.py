@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
-import tensorflow as tf
+import torch
 from sionna.phy import Block
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 
@@ -65,30 +65,28 @@ class AdaptiveHybridChannelEstimator(Block):
         self.last_branch: str | list[str] = "high"
 
     @staticmethod
-    def quality_proxy(h_ls: tf.Tensor, no: tf.Tensor) -> float:
-        signal_power = tf.reduce_mean(tf.abs(h_ls) ** 2)
-        noise_power = tf.reduce_mean(tf.cast(no, tf.float32))
-        ratio = signal_power / tf.maximum(noise_power, tf.constant(1e-12, tf.float32))
-        return float(ratio.numpy())
+    def quality_proxy(h_ls: torch.Tensor, no: torch.Tensor) -> float:
+        signal_power = torch.mean(torch.abs(h_ls) ** 2)
+        noise_power = torch.mean(torch.as_tensor(no, dtype=torch.float32))
+        return float(signal_power / torch.clamp(noise_power, min=1e-12))
 
     @staticmethod
-    def quality_proxy_per_terminal(h_ls: tf.Tensor, no: tf.Tensor) -> np.ndarray:
+    def quality_proxy_per_terminal(h_ls: torch.Tensor, no: torch.Tensor) -> np.ndarray:
         """Eq. quality-proxy evaluated separately for each terminal."""
         axes = [a for a in range(len(h_ls.shape)) if a != _TERMINAL_AXIS]
-        signal_power = tf.reduce_mean(tf.abs(h_ls) ** 2, axis=axes)
-        noise_power = tf.reduce_mean(tf.cast(no, tf.float32))
-        ratio = signal_power / tf.maximum(noise_power, tf.constant(1e-12, tf.float32))
-        return ratio.numpy()
+        signal_power = torch.mean(torch.abs(h_ls) ** 2, dim=axes)
+        noise_power = torch.mean(torch.as_tensor(no, dtype=torch.float32))
+        return (signal_power / torch.clamp(noise_power, min=1e-12)).cpu().numpy()
 
     def _blend_weight(self, branch: str) -> float:
         return _BRANCH_LMMSE_WEIGHT.get(branch, self.blend_mid_weight)
 
     def estimate_from_ls(
         self,
-        h_ls: tf.Tensor,
-        err_var_ls: tf.Tensor,
-        no: tf.Tensor,
-    ) -> Tuple[tf.Tensor, tf.Tensor, str | list[str]]:
+        h_ls: torch.Tensor,
+        err_var_ls: torch.Tensor,
+        no: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, str | list[str]]:
         if self.per_terminal_branch:
             return self._estimate_per_terminal(h_ls, err_var_ls, no)
         quality = self.quality_proxy(h_ls, no)
@@ -104,17 +102,17 @@ class AdaptiveHybridChannelEstimator(Block):
             return h_dft, err_dft, branch
 
         h_lmmse, err_lmmse = self._lmmse.estimate_from_ls(h_ls, err_var_ls, no)
-        w = tf.cast(self.blend_mid_weight, h_dft.dtype)
+        w = self.blend_mid_weight
         h_mid = w * h_lmmse + (1.0 - w) * h_dft
         err_mid = self.blend_mid_weight * err_lmmse + (1.0 - self.blend_mid_weight) * err_dft
         return h_mid, err_mid, branch
 
     def _estimate_per_terminal(
         self,
-        h_ls: tf.Tensor,
-        err_var_ls: tf.Tensor,
-        no: tf.Tensor,
-    ) -> Tuple[tf.Tensor, tf.Tensor, list[str]]:
+        h_ls: torch.Tensor,
+        err_var_ls: torch.Tensor,
+        no: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, list[str]]:
         quality = self.quality_proxy_per_terminal(h_ls, no)
         branches = [select_quality_branch(float(q), self.quality_low, self.quality_high) for q in quality]
         self.last_branch = branches
@@ -133,15 +131,12 @@ class AdaptiveHybridChannelEstimator(Block):
         h_lmmse, err_lmmse = self._lmmse.estimate_from_ls(h_ls, err_var_ls, no)
         shape = [1] * len(h_ls.shape)
         shape[_TERMINAL_AXIS] = len(branches)
-        w = tf.reshape(tf.constant(weights), shape)
-        h_hat = tf.cast(w, h_dft.dtype) * h_lmmse + tf.cast(1.0 - w, h_dft.dtype) * h_dft
-        err_var = (
-            tf.cast(w, tf.float32) * tf.cast(err_lmmse, tf.float32)
-            + tf.cast(1.0 - w, tf.float32) * tf.cast(err_dft, tf.float32)
-        )
+        w = torch.as_tensor(weights, device=h_dft.device).reshape(shape)
+        h_hat = w.to(h_dft.dtype) * h_lmmse + (1.0 - w).to(h_dft.dtype) * h_dft
+        err_var = w * err_lmmse.to(torch.float32) + (1.0 - w) * err_dft.to(torch.float32)
         return h_hat, err_var, branches
 
-    def call(self, y: tf.Tensor, no: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def call(self, y: torch.Tensor, no: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ls, err_var_ls = self._ls_estimator(y, no)
         h_hat, err_var, _ = self.estimate_from_ls(h_ls, err_var_ls, no)
         return h_hat, err_var

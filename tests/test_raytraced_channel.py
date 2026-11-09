@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import tensorflow as tf
+from factory6g.sim.rng import seed_all
 from sionna.phy.ofdm import ResourceGrid
 
 from factory6g.components import raytracing as rt
@@ -69,7 +69,7 @@ def _channel(tmp_path, split="eval"):
 
 
 def test_v1_raytraced_channel_shape_and_link_normalisation(tmp_path):
-    tf.random.set_seed(0)
+    seed_all(0)
     h = _channel(tmp_path).sample_frequency_response(5).numpy()
     assert h.shape == (5, 1, 8, 4, 1, 14, 128)
     energy = np.mean(np.abs(h) ** 2, axis=(2, 4, 5, 6))

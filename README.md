@@ -315,6 +315,46 @@ statistical channels, fine-tunes it on ray-traced samples, and scores it at
 held-out hall positions. `python -m factory6g.analysis.bank_validation`
 compares the channel bank with the TR 38.901 InF statistics.
 
+## PyTorch Stack (Sionna 2.2)
+
+The simulation also runs on Sionna 2.2 / PyTorch (`Dockerfile.torch`, image
+`factory6g-torch:latest`, compose service `simulation-torch`). The TensorFlow
+image (`Dockerfile`, Sionna 1.2.1) stays as it is: every locked thesis run was
+made with it, and the PyTorch code lives on its own branch.
+
+What changed in the port:
+
+* every TensorFlow op in the PHY path, the estimators, the Industry 5.0 hook,
+  PPO training and inference, and neural-estimator training is now PyTorch;
+* one random source: all draws (channel, noise, positions, bits) use Sionna's
+  `torch.Generator`, seeded by `factory6g.sim.rng.seed_all`;
+* Kronecker pilots are drawn on a fixed seed in isolation
+  (`factory6g.sim.rng.PILOT_SEED`), as Sionna 1.2.1 did. Sionna 2.2 draws them
+  from the shared generator, which would give each model its own pilots and
+  shift every later draw;
+* TR 38.901 UMi is pinned to `spec_version="16.1"` (Sionna 2.2 defaults to
+  19.2); set `tr38901_spec_version` in the system config to change it;
+* the LDPC decoder has no early stopping in either version, so decoder
+  iterations are reported as the configured `num_decoding_iter`;
+* weights trained on the TensorFlow stack load unchanged: the neural estimator
+  (`*.keras`) and PPO policies (`policy.keras`) are converted on load
+  (`factory6g.torch_io`), and the converted networks match Keras outputs to
+  about 1e-6. New training writes `*.pt` / `policy.pt`;
+* the legacy supervised DRL and CNN schedulers (`drl_policy.py`,
+  `cnn_resource_manager.py`) are used by no campaign and stay TensorFlow-only.
+
+Equivalence gate: the same config on both stacks, with the PyTorch run checked
+against the TensorFlow seed spread (Phase 1 seeds 42–46):
+
+```bash
+DATA_DIR=$PWD/data scripts/tools/run_phase4_gate.sh c     # Run C, estimators
+DATA_DIR=$PWD/data scripts/tools/run_phase4_gate.sh b     # Run B, schedulers
+python -m factory6g.analysis.equivalence --stage estimators \
+  --reference <the five Phase 1 Run C folders> --candidate results/phase4/<run>/
+```
+
+Tests: `docker compose run --rm --entrypoint python simulation-torch -m pytest -q`.
+
 ## Dataset, Training, And Reports
 
 Dataset and training workflows are documented in `data/README.md`. Keep those

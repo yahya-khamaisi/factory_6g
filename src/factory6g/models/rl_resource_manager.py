@@ -31,12 +31,12 @@ class RLResourceManager(ResourceManager):
     """
 
     def __init__(self, model_path: str, num_active: int = 2, **_: Any) -> None:
-        import tensorflow as tf
+        from factory6g.rl.ppo import load_actor_critic
 
         self.needs_channel_feedback = True
         self.num_active = int(num_active)
         self.model_path = str(model_path)
-        self.model = tf.keras.models.load_model(Path(model_path) / "policy.keras", compile=False)
+        self.model = load_actor_critic(model_path)
         self.metadata = json.loads((Path(model_path) / "metadata.json").read_text(encoding="utf-8"))
         self._avg_rates_by_state: dict[float, np.ndarray] = {}
 
@@ -54,7 +54,10 @@ class RLResourceManager(ResourceManager):
         if feedback is None:
             raise ValueError("RLResourceManager needs channel feedback.")
         state = policy_state(feedback.h_hat, float(ebno_db), fairness_debt(avg))
-        sched, power, _ = self.model(state[None], training=False)
+        import torch
+
+        with torch.no_grad():
+            sched, power, _ = self.model(state[None])
         selected, power_high = greedy_action(sched.numpy()[0], power.numpy()[0], self.num_active)
         mask = [0] * num_ut
         per_ut_power = [0.0] * num_ut

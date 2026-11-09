@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import tensorflow as tf
+import torch
 
 from factory6g.models.model import Model
 from factory6g.sim.config import load_config
@@ -44,7 +44,7 @@ def _model(tmp_path: Path, channel: str) -> Model:
     config = load_config(path)
     model = Model(config=config.system_runtime_config, estimator_type="ls", perfect_csi=True)
     if model._channel._large_scale is not None:
-        model._channel._large_scale.statistical_gain = lambda idx: tf.ones([1], tf.float32)
+        model._channel._large_scale.statistical_gain = lambda idx: torch.ones([1], dtype=torch.float32)
     return model
 
 

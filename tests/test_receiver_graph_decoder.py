@@ -1,13 +1,14 @@
-"""The graph-mode LDPC decoder must match eager decoding exactly."""
+"""The receiver's decode path must match calling the Sionna decoder directly."""
 
-import tensorflow as tf
+import torch
 
 from factory6g.models.model import Model
 from factory6g.sim.config import load_config
+from factory6g.sim.rng import seed_all
 
 
-def test_graph_decoder_matches_eager_decoder():
-    tf.random.set_seed(7)
+def test_receiver_decoder_matches_direct_decoder():
+    seed_all(7)
     cfg = load_config("config/config.json").system_runtime_config
     m = Model(cfg, estimator_type="ls")
     rx = m._receiver
@@ -18,7 +19,7 @@ def test_graph_decoder_matches_eager_decoder():
         h_hat, err_var = rx.estimate_channel(y, ctx.noise_variance)
         x_hat, no_eff = rx.equalize(y, h_hat, err_var, ctx.noise_variance)
         llr = rx.demap(x_hat, no_eff)
-        eager = rx._decoder(llr)
-        graph = rx._decode_graph(llr)
-        assert bool(tf.reduce_all(tf.equal(eager[0], graph[0])))
-        assert bool(tf.reduce_all(tf.equal(eager[-1], graph[-1])))
+        direct = rx._decoder(llr)
+        decoded, num_iter = rx.decode(llr)
+        assert torch.equal(direct, decoded)
+        assert float(num_iter.mean()) == float(rx._num_iter)

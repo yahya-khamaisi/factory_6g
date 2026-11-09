@@ -61,7 +61,7 @@ def git_head(start: Path = PACKAGE_ROOT) -> dict[str, str] | None:
 
 def _versions() -> dict[str, str]:
     out = {"python": platform.python_version(), "platform": platform.platform()}
-    for name in ("numpy", "tensorflow", "sionna", "scipy", "mitsuba", "drjit"):
+    for name in ("numpy", "tensorflow", "torch", "sionna", "scipy", "mitsuba", "drjit"):
         module = sys.modules.get(name)
         if module is None:
             try:

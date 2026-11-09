@@ -4,7 +4,10 @@ import json
 import zipfile
 
 import numpy as np
-import tensorflow as tf
+import pytest
+
+# Legacy supervised DRL scheduler (not used by any campaign); TensorFlow stack only.
+tf = pytest.importorskip("tensorflow")
 
 from factory6g.models.drl_policy import (
     POLICY_HISTORY_FILENAME,

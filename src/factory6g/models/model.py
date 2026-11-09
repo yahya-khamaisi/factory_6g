@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 import numpy as np
-import tensorflow as tf
+import torch
 from sionna.phy.mimo import StreamManagement
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 from sionna.phy.utils import ebnodb2no
@@ -44,16 +44,19 @@ class Model:
         rx_tx_association = np.zeros([1, num_tx], dtype=np.int32)
         rx_tx_association[0, :] = 1
 
-        self._rg = ResourceGrid(
-            num_ofdm_symbols=num_ofdm_symbols,
-            fft_size=fft_size,
-            subcarrier_spacing=subcarrier_spacing,
-            num_tx=num_tx,
-            num_streams_per_tx=num_streams_per_tx,
-            cyclic_prefix_length=cyclic_prefix_length,
-            pilot_pattern="kronecker",
-            pilot_ofdm_symbol_indices=pilot_ofdm_symbol_indices,
-        )
+        from factory6g.sim.rng import PILOT_SEED, isolated_draws
+
+        with isolated_draws(PILOT_SEED):
+            self._rg = ResourceGrid(
+                num_ofdm_symbols=num_ofdm_symbols,
+                fft_size=fft_size,
+                subcarrier_spacing=subcarrier_spacing,
+                num_tx=num_tx,
+                num_streams_per_tx=num_streams_per_tx,
+                cyclic_prefix_length=cyclic_prefix_length,
+                pilot_pattern="kronecker",
+                pilot_ofdm_symbol_indices=pilot_ofdm_symbol_indices,
+            )
 
         self._sm = StreamManagement(rx_tx_association, num_streams_per_tx)
 
@@ -118,6 +121,7 @@ class Model:
             pilot_reuse_factor=1,
         )
 
+    @torch.no_grad()
     def prepare_batch_context(
         self,
         batch_size: int,
@@ -130,14 +134,14 @@ class Model:
             # Scenario layer (factory6g.sim.industry): blockage, port faults, interference.
             h_freq = self.channel_hook(h_freq)
 
-        noise_variance = tf.cast(
+        noise_variance = torch.as_tensor(
             ebnodb2no(
                 ebno_db,
                 self.config.get("num_bits_per_symbol", 2),
                 self.config.get("coderate", 0.5),
                 self._rg,
             ),
-            tf.float32,
+            dtype=torch.float32,
         )
         y_shape = self._channel.received_shape_from_response(h_freq)
         probe_noise = self._channel.sample_noise(y_shape, noise_variance)
@@ -152,7 +156,7 @@ class Model:
             if self.perfect_csi:
                 feedback = ResourceManagerFeedback(
                     h_hat=h_freq,
-                    err_var=tf.zeros(tf.shape(h_freq), dtype=noise_variance.dtype),
+                    err_var=torch.zeros(h_freq.shape, dtype=noise_variance.dtype),
                 )
             else:
                 h_hat, err_var = self._receiver.estimate_channel(y_probe, noise_variance)
@@ -169,6 +173,7 @@ class Model:
             feedback=feedback,
         )
 
+    @torch.no_grad()
     def estimate_feedback(self, batch_context: BatchContext) -> ResourceManagerFeedback:
         """Scheduler feedback from this model's own estimator on the context's probe.
 
@@ -189,11 +194,12 @@ class Model:
         if self.perfect_csi:
             return ResourceManagerFeedback(
                 h_hat=batch_context.h_freq,
-                err_var=tf.zeros(tf.shape(batch_context.h_freq), dtype=batch_context.noise_variance.dtype),
+                err_var=torch.zeros(batch_context.h_freq.shape, dtype=batch_context.noise_variance.dtype),
             )
         h_hat, err_var = self._receiver.estimate_channel(y_probe, batch_context.noise_variance)
         return ResourceManagerFeedback(h_hat=h_hat, err_var=err_var)
 
+    @torch.no_grad()
     def run_batch(
         self,
         batch_context: BatchContext,
@@ -211,7 +217,7 @@ class Model:
 
         if self.perfect_csi:
             h_hat = batch_context.h_freq
-            err_var = 0.0
+            err_var = torch.zeros((), dtype=torch.float32)
         else:
             h_hat, err_var = self._receiver.estimate_channel(y, batch_context.noise_variance)
 
@@ -288,7 +294,7 @@ class Model:
         self,
         runtime_latency_sec: float,
         air_interface_latency_sec: float,
-        decoder_iter: tf.Tensor,
+        decoder_iter: torch.Tensor,
     ) -> float:
         num_info_bits = self._transmitter.num_info_bits
         safe_latency = max(runtime_latency_sec, 1e-12)
@@ -296,13 +302,13 @@ class Model:
         encoding_energy = encoding_power_watts * safe_latency * 0.1
         tx_energy = 0.2 * air_interface_latency_sec
         rx_energy = 0.1 * air_interface_latency_sec
-        avg_iterations = float(tf.reduce_mean(decoder_iter))
+        avg_iterations = float(torch.mean(decoder_iter))
         decoding_power_watts = 50e-3 * (num_info_bits / safe_latency) / 1e6 * (1.0 + avg_iterations / 10.0)
         decoding_energy = decoding_power_watts * safe_latency * 0.3
         return encoding_energy + tx_energy + rx_energy + decoding_energy
 
     @staticmethod
-    def _noise_power_value(noise_variance: tf.Tensor) -> float:
+    def _noise_power_value(noise_variance: torch.Tensor) -> float:
         if hasattr(noise_variance, "numpy"):
             value = noise_variance.numpy()
         else:

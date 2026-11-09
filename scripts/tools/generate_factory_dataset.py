@@ -13,7 +13,7 @@ from typing import Any
 
 import h5py
 import numpy as np
-import tensorflow as tf
+from factory6g.sim.rng import seed_all
 
 project_root = Path(__file__).resolve().parents[1]
 
@@ -366,7 +366,7 @@ def _generate_profile_samples(
     )
     from sionna.rt.scene import box as box_xml_path
 
-    tf.random.set_seed(seed)
+    seed_all(seed)
     np.random.seed(seed)
     rng = np.random.default_rng(seed)
 

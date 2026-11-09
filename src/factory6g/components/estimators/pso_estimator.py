@@ -28,7 +28,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
-import tensorflow as tf
+import torch
 from sionna.phy import Block
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 
@@ -204,11 +204,11 @@ class PSOChannelEstimator(Block):
         roughness = _roughness_penalty(candidate)
         return consistency + self.tail_weight * tail + self.roughness_weight * roughness
 
-    def call(self, y: tf.Tensor, noise_variance: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def call(self, y: torch.Tensor, noise_variance: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ls, err_var = self._base(y, noise_variance)
 
-        h_ls_np = h_ls.numpy().astype(np.complex64)
-        avg_no = float(tf.reduce_mean(tf.cast(noise_variance, tf.float32)).numpy())
+        h_ls_np = h_ls.detach().cpu().numpy().astype(np.complex64)
+        avg_no = float(torch.mean(torch.as_tensor(noise_variance, dtype=torch.float32)))
         dft_cache: dict[int, np.ndarray] = {}
         lmmse_cache: dict[float, tuple[np.ndarray, float]] = {}
 
@@ -282,6 +282,6 @@ class PSOChannelEstimator(Block):
             "blend": float(global_best[2]),
         }
 
-        h_hat = tf.convert_to_tensor(best_candidate, dtype=h_ls.dtype)
-        err_var_out = err_var * tf.cast(best_err_scale, err_var.dtype)
+        h_hat = torch.as_tensor(best_candidate, device=h_ls.device).to(h_ls.dtype)
+        err_var_out = err_var * best_err_scale
         return h_hat, err_var_out

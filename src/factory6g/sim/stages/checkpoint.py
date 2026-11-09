@@ -47,15 +47,8 @@ def reseed_for_resume(seed: int, start_batch_index: int) -> int:
     batches. Offsetting the seed by the resume batch index gives the remaining
     batches fresh draws while keeping a resumed run reproducible.
     """
-    import random
-
-    import numpy as np
-    import sionna
-    import tensorflow as tf
+    from factory6g.sim.rng import seed_all
 
     resume_seed = int(seed) + int(start_batch_index)
-    random.seed(resume_seed)
-    np.random.seed(resume_seed)
-    tf.random.set_seed(resume_seed)
-    sionna.phy.config.seed = resume_seed
+    seed_all(resume_seed)
     return resume_seed

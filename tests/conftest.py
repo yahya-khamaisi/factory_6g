@@ -10,15 +10,13 @@ import pytest
 
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
 
-import sionna.phy
-import tensorflow as tf
+import torch
+
+from factory6g.sim.rng import seed_all
 
 
 def set_all_seeds(seed: int = 1234) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    sionna.phy.config.seed = seed
+    seed_all(seed)
 
 
 def make_tiny_config(output_dir: str) -> dict:

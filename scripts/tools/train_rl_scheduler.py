@@ -18,8 +18,8 @@ from factory6g.sim.env import configure_env
 configure_env(force_cpu=True, gpu_num=0)
 
 import numpy as np
-import sionna.phy
-import tensorflow as tf
+
+from factory6g.sim.rng import seed_all
 
 from factory6g.rl.ppo import PPOConfig, completed_iterations, train_ppo
 from factory6g.rl.scheduler_env import SchedulerEnv
@@ -58,10 +58,7 @@ def main() -> None:
     # Simulator generators are reseeded per segment from the seed and the number
     # of completed iterations, so a segmented run is reproducible.
     sim_seed = seed + completed_iterations(args.output_dir)
-    random.seed(sim_seed)
-    np.random.seed(sim_seed)
-    tf.random.set_seed(sim_seed)
-    sionna.phy.config.seed = sim_seed
+    seed_all(sim_seed)
 
     env = SchedulerEnv(
         config.system_runtime_config,

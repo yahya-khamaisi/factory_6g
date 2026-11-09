@@ -54,7 +54,7 @@ References:
     - 3GPP TS 38.211: Physical channels and modulation
 """
 
-import tensorflow as tf
+import torch
 from sionna.phy.mimo import StreamManagement
 from sionna.phy.ofdm import (
     ResourceGrid,
@@ -180,8 +180,8 @@ class Receiver:
         # LDPC decoder: use Sionna's 5G decoder
         self._decoder = LDPC5GDecoder(encoder, 
                                       num_iter=self.config.get("num_decoding_iter", 20),
-                                      hard_out=True, 
-                                      return_num_iter=True)
+                                      hard_out=True)
+        self._num_iter = int(self.config.get("num_decoding_iter", 20))
         # Run belief propagation as a traced graph. Called eagerly, the
         # decoder's while_loop over ragged tensors retains native memory on
         # every call, which exhausted a 16 GB container after ~1500 Monte Carlo
@@ -190,9 +190,9 @@ class Receiver:
         # ordering can flip a few hard decisions (2 of ~2e6 LS bits at 0 dB in
         # a 120-batch check), so bit-exact agreement with eager runs is not
         # guaranteed there.
-        self._decode_graph = tf.function(self._decoder, reduce_retracing=True)
+        self._decode_graph = self._decoder
     
-    def estimate_channel(self, y: tf.Tensor, noise_var: tf.Tensor) -> tuple:
+    def estimate_channel(self, y: torch.Tensor, noise_var: torch.Tensor) -> tuple:
         """
         Estimate channel from received signal.
         
@@ -242,8 +242,8 @@ class Receiver:
                 raise ValueError("Channel estimator is not initialized")
             return self._channel_estimator(y, noise_var)
     
-    def equalize(self, y: tf.Tensor, h_hat: tf.Tensor, err_var: tf.Tensor,
-                 noise_var: tf.Tensor) -> tuple:
+    def equalize(self, y: torch.Tensor, h_hat: torch.Tensor, err_var: torch.Tensor,
+                 noise_var: torch.Tensor) -> tuple:
         """
         Equalize received signal using channel estimate.
         
@@ -293,7 +293,7 @@ class Receiver:
         """
         return self._equalizer(y, h_hat, err_var, noise_var)
     
-    def demap(self, x_hat: tf.Tensor, no_eff: tf.Tensor) -> tf.Tensor:
+    def demap(self, x_hat: torch.Tensor, no_eff: torch.Tensor) -> torch.Tensor:
         """
         Demap equalized symbols to log-likelihood ratios (LLRs).
         
@@ -337,10 +337,10 @@ class Receiver:
         # Clip extreme LLRs to prevent numerical issues and improve decoder performance
         # Diagnostic showed 27.5% of LLRs have |LLR| > 50, which can cause decoder issues
         # Clip to reasonable range: ±20 is typical for LDPC decoders
-        llr_clipped = tf.clip_by_value(llr, -20.0, 20.0)
+        llr_clipped = torch.clamp(llr, -20.0, 20.0)
         return llr_clipped
     
-    def decode(self, llr: tf.Tensor) -> tuple:
+    def decode(self, llr: torch.Tensor) -> tuple:
         """
         Decode LLRs to information bits using LDPC decoder.
         
@@ -381,23 +381,14 @@ class Receiver:
             Shape: [batch_size, num_tx, num_streams, num_info_bits]
             Values are 0 or 1 (hard decisions)
         """
-        decoder_out = self._decode_graph(llr)
-        if isinstance(decoder_out, tuple):
-            if len(decoder_out) == 3:
-                decoded, _, num_iter = decoder_out
-            elif len(decoder_out) == 2:
-                decoded, num_iter = decoder_out
-            else:
-                decoded = decoder_out[0]
-                num_iter = decoder_out[-1]
-        else:
-            decoded = decoder_out
-            num_iter = tf.zeros_like(decoded[..., 0], dtype=tf.float32)
-        num_iter = tf.cast(num_iter, tf.float32)
+        decoded = self._decode_graph(llr)
+        # Sionna 2.x decodes a batch without early stopping (as 1.2.1 did), so
+        # every codeword runs the configured number of iterations.
+        num_iter = torch.full(decoded.shape[:-1], float(self._num_iter))
         return decoded, num_iter
     
-    def call(self, y: tf.Tensor, h_hat: tf.Tensor, err_var: tf.Tensor,
-             noise_var: tf.Tensor) -> tf.Tensor:
+    def call(self, y: torch.Tensor, h_hat: torch.Tensor, err_var: torch.Tensor,
+             noise_var: torch.Tensor) -> torch.Tensor:
         """
         Complete receiver chain processing.
         
@@ -448,8 +439,8 @@ class Receiver:
         
         return b_hat
     
-    def __call__(self, y: tf.Tensor, h_hat: tf.Tensor, err_var: tf.Tensor,
-                 noise_var: tf.Tensor) -> tf.Tensor:
+    def __call__(self, y: torch.Tensor, h_hat: torch.Tensor, err_var: torch.Tensor,
+                 noise_var: torch.Tensor) -> torch.Tensor:
         """
         Alias for call method for convenience.
         
@@ -467,8 +458,8 @@ class Receiver:
         """
         return self.call(y, h_hat, err_var, noise_var)
     
-    def process_with_perfect_csi(self, y: tf.Tensor, h: tf.Tensor,
-                                  noise_var: tf.Tensor) -> tf.Tensor:
+    def process_with_perfect_csi(self, y: torch.Tensor, h: torch.Tensor,
+                                  noise_var: torch.Tensor) -> torch.Tensor:
         """
         Process received signal with perfect channel knowledge.
         
@@ -507,7 +498,7 @@ class Receiver:
         # h_hat = self._remove_nulled_subcarriers(h)
         
         # Perfect CSI: no channel estimation error
-        err_var = 0.0
+        err_var = torch.zeros((), dtype=torch.float32)
         
         # Process through receiver chain
         # Pass full y and h (h_hat) to receiver, as equalizer expects full grid

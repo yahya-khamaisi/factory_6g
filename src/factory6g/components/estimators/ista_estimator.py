@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
-import tensorflow as tf
+import torch
 from sionna.phy import Block
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 
@@ -36,49 +36,28 @@ class ISTAChannelEstimator(Block):
         self.lambda_scale = float(lambda_scale)
         self.step_size = float(step_size)
 
-    def _soft_threshold(self, x: tf.Tensor, threshold: tf.Tensor) -> tf.Tensor:
+    @staticmethod
+    def _soft_threshold(x: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
         """Complex soft-thresholding: shrink magnitude, preserve phase."""
-        magnitude = tf.abs(x)
-        shrunk = tf.maximum(magnitude - threshold, 0.0)
-        # Avoid division by zero for zero-magnitude entries
-        safe_mag = tf.maximum(magnitude, 1e-10)
-        phase = x / tf.cast(safe_mag, x.dtype)
-        return phase * tf.cast(shrunk, x.dtype)
+        magnitude = torch.abs(x)
+        shrunk = torch.clamp(magnitude - threshold, min=0.0)
+        phase = x / torch.clamp(magnitude, min=1e-10).to(x.dtype)
+        return phase * shrunk.to(x.dtype)
 
-    def _ista_refine(self, h_ls: tf.Tensor, no: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-        """Apply ISTA in the delay domain to denoise h_ls.
-
-        Returns the refined frequency-domain estimate and an approximate
-        active-tap count for error-variance scaling.
-        """
-        # Keep threshold as float32 — tf.abs() returns float, not complex
-        no_scalar = tf.reduce_mean(tf.cast(no, tf.float32))
-        threshold = tf.cast(self.lambda_scale * tf.sqrt(no_scalar), tf.float32)
-        step = tf.cast(self.step_size, tf.float32)
-
-        h_delay = tf.signal.ifft(h_ls)
-        h = h_delay
-
+    def _ista_refine(self, h_ls: torch.Tensor, no: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Apply ISTA in the delay domain; return the estimate and the active-tap fraction."""
+        no_scalar = torch.mean(torch.as_tensor(no, dtype=torch.float32))
+        threshold = self.lambda_scale * torch.sqrt(no_scalar)
+        step = self.step_size
+        h = torch.fft.ifft(h_ls, dim=-1)
         for _ in range(self.num_iterations):
-            # Gradient step: residual in frequency domain, pulled back to delay
-            residual = tf.signal.ifft(h_ls - tf.signal.fft(h))
-            h = self._soft_threshold(
-                h + tf.cast(step, h.dtype) * residual,
-                threshold * step,
-            )
+            residual = torch.fft.ifft(h_ls - torch.fft.fft(h, dim=-1), dim=-1)
+            h = self._soft_threshold(h + step * residual, threshold * step)
+        active_fraction = torch.mean((torch.abs(h) > threshold * step).to(torch.float32))
+        active_fraction = torch.clamp(active_fraction, 1.0 / self.fft_size, 1.0)
+        return torch.fft.fft(h, dim=-1), active_fraction
 
-        # Estimate active taps (magnitude above threshold) for error-variance scaling
-        active_fraction = tf.reduce_mean(
-            tf.cast(tf.abs(h) > threshold * step, tf.float32)
-        )
-        # Clamp to [1/fft_size, 1] to avoid degenerate scaling
-        active_fraction = tf.clip_by_value(active_fraction, 1.0 / self.fft_size, 1.0)
-
-        h_hat = tf.signal.fft(h)
-        return h_hat, active_fraction
-
-    def call(self, y: tf.Tensor, no: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def call(self, y: torch.Tensor, no: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ls, err_var_ls = self._ls_estimator(y, no)
         h_hat, active_fraction = self._ista_refine(h_ls, no)
-        err_var = err_var_ls * tf.cast(active_fraction, err_var_ls.dtype)
-        return h_hat, err_var
+        return h_hat, err_var_ls * active_fraction.to(err_var_ls.dtype)

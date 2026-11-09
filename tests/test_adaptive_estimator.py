@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 import pytest
-import tensorflow as tf
+import torch
 from sionna.phy.ofdm import ResourceGrid
 
 from factory6g.components.estimators import (
@@ -41,22 +41,22 @@ def test_adaptive_estimator_shape_dtype_and_branch_selection():
     estimator = AdaptiveHybridChannelEstimator(
         _tiny_resource_grid(), quality_low=3.0, quality_high=12.0, per_terminal_branch=False
     )
-    h_ls = tf.complex(tf.ones([1, 1, 1, 1, 1, 4, 16], dtype=tf.float32), tf.zeros([1, 1, 1, 1, 1, 4, 16]))
-    err_var_ls = tf.ones([1, 1, 1, 1, 1, 4, 16], dtype=tf.float32)
+    h_ls = torch.complex(torch.ones([1, 1, 1, 1, 1, 4, 16]), torch.zeros([1, 1, 1, 1, 1, 4, 16]))
+    err_var_ls = torch.ones([1, 1, 1, 1, 1, 4, 16])
 
-    h_low, e_low, branch_low = estimator.estimate_from_ls(h_ls, err_var_ls, tf.constant(100.0, tf.float32))
-    h_mid, e_mid, branch_mid = estimator.estimate_from_ls(h_ls, err_var_ls, tf.constant(0.2, tf.float32))
-    h_high, e_high, branch_high = estimator.estimate_from_ls(h_ls, err_var_ls, tf.constant(0.01, tf.float32))
+    h_low, e_low, branch_low = estimator.estimate_from_ls(h_ls, err_var_ls, torch.tensor(100.0, dtype=torch.float32))
+    h_mid, e_mid, branch_mid = estimator.estimate_from_ls(h_ls, err_var_ls, torch.tensor(0.2, dtype=torch.float32))
+    h_high, e_high, branch_high = estimator.estimate_from_ls(h_ls, err_var_ls, torch.tensor(0.01, dtype=torch.float32))
 
     assert branch_low == "low"
     assert branch_mid == "mid"
     assert branch_high == "high"
-    assert h_low.dtype == tf.complex64
-    assert h_mid.dtype == tf.complex64
-    assert h_high.dtype == tf.complex64
-    assert e_low.dtype == tf.float32
-    assert e_mid.dtype == tf.float32
-    assert e_high.dtype == tf.float32
+    assert h_low.dtype == torch.complex64
+    assert h_mid.dtype == torch.complex64
+    assert h_high.dtype == torch.complex64
+    assert e_low.dtype == torch.float32
+    assert e_mid.dtype == torch.float32
+    assert e_high.dtype == torch.float32
     assert tuple(h_low.shape) == (1, 1, 1, 1, 1, 4, 16)
     assert tuple(e_low.shape) == (1, 1, 1, 1, 1, 4, 16)
 
@@ -65,27 +65,27 @@ def test_lmmse_spectral_shrinkage_matches_direct_inverse():
     rg = _tiny_resource_grid()
     estimator = LMMSEChannelEstimator(rg, r_freq=0.97, noise_bin_db=0.0)
 
-    tf.random.set_seed(2026)
-    real = tf.random.normal([2, 1, 1, 1, 1, 4, 16], dtype=tf.float32)
-    imag = tf.random.normal([2, 1, 1, 1, 1, 4, 16], dtype=tf.float32)
-    h_ls = tf.complex(real, imag)
-    err_var_ls = tf.ones([2, 1, 1, 1, 1, 4, 16], dtype=tf.float32)
-    no = tf.constant(0.3, dtype=tf.float32)
+    torch.manual_seed(2026)
+    real = torch.randn([2, 1, 1, 1, 1, 4, 16])
+    imag = torch.randn([2, 1, 1, 1, 1, 4, 16])
+    h_ls = torch.complex(real, imag)
+    err_var_ls = torch.ones([2, 1, 1, 1, 1, 4, 16])
+    no = torch.tensor(0.3, dtype=torch.float32)
 
     h_fast, err_fast = estimator.estimate_from_ls(h_ls, err_var_ls, no)
 
     r = estimator.R_freq
-    eye = tf.eye(estimator.fft_size, dtype=tf.complex64)
-    w_ref = tf.matmul(r, tf.linalg.inv(r + tf.cast(no, tf.complex64) * eye))
-    h_ref = tf.reshape(
-        tf.matmul(tf.reshape(h_ls, [-1, estimator.fft_size]), tf.transpose(w_ref)),
-        tf.shape(h_ls),
+    eye = torch.eye(estimator.fft_size, dtype=torch.complex64)
+    w_ref = r @ torch.linalg.inv(r + no.to(torch.complex64) * eye)
+    h_ref = torch.reshape(
+        h_ls.reshape(-1, estimator.fft_size) @ w_ref.T,
+        h_ls.shape,
     )
-    smooth = tf.math.real(tf.linalg.trace(w_ref)) / float(estimator.fft_size)
+    smooth = torch.trace(w_ref).real / float(estimator.fft_size)
     err_ref = err_var_ls * smooth
 
-    assert tf.reduce_max(tf.abs(h_fast - h_ref)).numpy() < 1e-4
-    assert tf.reduce_max(tf.abs(err_fast - err_ref)).numpy() < 1e-5
+    assert float(torch.max(torch.abs(h_fast - h_ref))) < 1e-4
+    assert float(torch.max(torch.abs(err_fast - err_ref))) < 1e-5
 
 
 def _benchmark_model(

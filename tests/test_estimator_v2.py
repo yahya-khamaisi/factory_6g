@@ -6,7 +6,7 @@ import json
 
 import numpy as np
 import pytest
-import tensorflow as tf
+import torch
 from sionna.phy.ofdm import ResourceGrid
 
 from factory6g.components.estimators import AdaptiveHybridChannelEstimator, LMMSEChannelEstimator
@@ -61,13 +61,13 @@ def test_effective_ebno_subtracts_ls_noise_and_floors():
     np.testing.assert_allclose(cond[:, :, :, 1, :], -30.0, atol=1e-3)
 
 
-def test_tensorflow_conditioning_matches_numpy():
+def test_torch_conditioning_matches_numpy():
     rg = _tiny_resource_grid()
     est = NeuralChannelEstimator(rg, model_path="does/not/exist.keras")
     h_ls = _two_terminal_ls((-2.0, 7.0))
     err = np.full(SHAPE, 0.1, dtype=np.float32)
     expected = effective_ebno_db_np(h_ls, err_var_mean=0.1, ebno_db=4.0)
-    got = est.effective_ebno_db(tf.constant(h_ls), tf.constant(err), tf.constant(4.0)).numpy()
+    got = est.effective_ebno_db(torch.as_tensor(h_ls), torch.as_tensor(err), torch.tensor(4.0)).numpy()
     np.testing.assert_allclose(got, expected, atol=1e-4)
 
 
@@ -85,10 +85,10 @@ def test_conditioning_is_read_from_metadata(tmp_path):
 def test_adaptive_branch_is_chosen_per_terminal():
     rg = _tiny_resource_grid()
     est = AdaptiveHybridChannelEstimator(rg, quality_low=3.0, quality_high=12.0)
-    no = tf.constant(1.0, tf.float32)
+    no = torch.tensor(1.0)
     # Terminal 0 at quality 1 (low), terminal 1 at quality 100 (high).
-    h_ls = tf.constant(_two_terminal_ls((0.0, 20.0)))
-    err = tf.ones(SHAPE, tf.float32)
+    h_ls = torch.as_tensor(_two_terminal_ls((0.0, 20.0)))
+    err = torch.ones(SHAPE)
     h_hat, err_var, branches = est.estimate_from_ls(h_ls, err, no)
     assert branches == ["low", "high"]
 
@@ -104,9 +104,9 @@ def test_adaptive_branch_is_chosen_per_terminal():
 def test_adaptive_single_branch_batch_matches_pure_estimator():
     rg = _tiny_resource_grid()
     est = AdaptiveHybridChannelEstimator(rg, quality_low=3.0, quality_high=12.0)
-    h_ls = tf.constant(_two_terminal_ls((0.0, 1.0)))
-    err = tf.ones(SHAPE, tf.float32)
-    no = tf.constant(1.0, tf.float32)
+    h_ls = torch.as_tensor(_two_terminal_ls((0.0, 1.0)))
+    err = torch.ones(SHAPE)
+    no = torch.tensor(1.0)
     h_hat, _, branches = est.estimate_from_ls(h_ls, err, no)
     assert branches == ["low", "low"]
     h_lmmse, _ = LMMSEChannelEstimator(rg).estimate_from_ls(h_ls, err, no)
@@ -117,6 +117,6 @@ def test_adaptive_single_branch_batch_matches_pure_estimator():
 def test_adaptive_v1_rule_still_available(per_terminal):
     rg = _tiny_resource_grid()
     est = AdaptiveHybridChannelEstimator(rg, per_terminal_branch=per_terminal)
-    h_ls = tf.constant(_two_terminal_ls((0.0, 20.0)))
-    _, _, branches = est.estimate_from_ls(h_ls, tf.ones(SHAPE, tf.float32), tf.constant(1.0, tf.float32))
+    h_ls = torch.as_tensor(_two_terminal_ls((0.0, 20.0)))
+    _, _, branches = est.estimate_from_ls(h_ls, torch.ones(SHAPE), torch.tensor(1.0))
     assert isinstance(branches, list) == per_terminal

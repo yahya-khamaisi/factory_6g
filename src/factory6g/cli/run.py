@@ -348,31 +348,26 @@ def main() -> int:
         print(f"Log file: {log_path.resolve()}")
 
         if sim_config.deterministic:
-            os.environ["TF_DETERMINISTIC_OPS"] = "1"
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         configure_env(force_cpu=sim_config.force_cpu, gpu_num=sim_config.gpu_id)
 
-        import numpy as np
-        import sionna.phy
-        import tensorflow as tf
+        import torch
 
         from factory6g.sim.flow import run_jidd_scma_flow, run_simulation_flow
 
         level = getattr(logging, sim_config.log_level, logging.INFO)
         _configure_root_logging(level, original_stdout, log_path)
-        tf.get_logger().setLevel("ERROR" if level > logging.DEBUG else "INFO")
-        warnings.filterwarnings("ignore", category=UserWarning, module="tensorflow")
-        logging.getLogger("tensorflow").setLevel(logging.ERROR if level > logging.DEBUG else logging.INFO)
-        logging.getLogger("absl").setLevel(logging.ERROR if level > logging.DEBUG else logging.INFO)
+        warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 
         if not sim_config.force_cpu:
             setup_gpu(sim_config.gpu_id, force_cpu=sim_config.force_cpu)
 
-        random.seed(sim_config.seed)
-        np.random.seed(sim_config.seed)
-        tf.random.set_seed(sim_config.seed)
-        sionna.phy.config.seed = sim_config.seed
+        from factory6g.sim.rng import seed_all
+
+        seed_all(sim_config.seed)
+        torch.set_grad_enabled(False)
         if sim_config.deterministic:
-            tf.config.experimental.enable_op_determinism()
+            torch.use_deterministic_algorithms(True)
 
         from factory6g.sim.provenance import build_provenance, write_provenance
 

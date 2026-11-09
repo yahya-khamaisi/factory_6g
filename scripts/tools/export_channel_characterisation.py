@@ -14,7 +14,8 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+
+from factory6g.sim.rng import seed_all
 
 from factory6g.models.model import Model
 from factory6g.sim.config import load_config
@@ -61,7 +62,7 @@ def main() -> None:
     base = load_config(args.config).system_runtime_config
     rows = []
     for key, label in CHANNELS:
-        tf.random.set_seed(args.seed)
+        seed_all(args.seed)
         cfg = dict(base, channel_model_type=key, rt_bank_split="eval", large_scale_model="hall")
         channel = Model(cfg, estimator_type="ls").get_channel()
         # Many short batches, so the statistics cover many terminal positions.

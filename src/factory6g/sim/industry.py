@@ -120,16 +120,16 @@ class IndustryScenario:
                 "sinr_loss_db": sinr_loss, "events": active}
 
     def channel_hook(self, state: dict[str, Any]) -> Callable[[Any], Any]:
-        import tensorflow as tf
+        import torch
 
         amp_ut = 10.0 ** (-(np.asarray(state["attenuation_db"]) + state["sinr_loss_db"]) / 20.0)
         ports = np.asarray(state["ports"])
 
         def hook(h_freq):
             # h_freq: [batch, rx, rx_ant, tx, tx_ant, ofdm_sym, fft]
-            scale = tf.constant(amp_ut, dtype=tf.float32)[None, None, None, :, None, None, None]
-            mask = tf.constant(ports, dtype=tf.float32)[None, None, :, None, None, None, None]
-            return h_freq * tf.cast(scale * mask, h_freq.dtype)
+            scale = torch.as_tensor(amp_ut, dtype=torch.float32)[None, None, None, :, None, None, None]
+            mask = torch.as_tensor(ports, dtype=torch.float32)[None, None, :, None, None, None, None]
+            return h_freq * (scale * mask).to(h_freq.dtype)
 
         return hook
 

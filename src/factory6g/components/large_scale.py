@@ -21,7 +21,9 @@ import math
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+import torch
+
+from factory6g.sim.rng import rng
 
 SHADOWING_SIGMA_DB = {True: 4.3, False: 5.7}  # TR 38.901 InF-SL, LOS / NLOS
 
@@ -74,33 +76,33 @@ class HallLargeScale:
         self.g_ref_statistical = float(np.mean(10.0 ** (-all_pl / 10.0) * _mean_shadowing_factor(all_sigma)))
         self.g_ref_raytraced = float(np.mean(all_rt))
 
-        self._pl_tf = tf.constant(self.path_loss_db, tf.float32)
-        self._sigma_tf = tf.constant(self.sigma_db, tf.float32)
+        self._pl_t = torch.as_tensor(self.path_loss_db, dtype=torch.float32)
+        self._sigma_t = torch.as_tensor(self.sigma_db, dtype=torch.float32)
         self.last: dict[str, np.ndarray] | None = None
 
-    def draw_indices(self) -> tf.Tensor:
-        """U distinct bank positions for one batch (uses the global TF generator)."""
+    def draw_indices(self) -> torch.Tensor:
+        """U distinct bank positions for one batch (uses the shared Sionna generator)."""
         n = self.positions.shape[0]
-        return tf.argsort(tf.random.uniform([n]))[: self.num_ut]
+        return torch.randperm(n, generator=rng("cpu"))[: self.num_ut]
 
-    def statistical_gain(self, idx: tf.Tensor) -> tf.Tensor:
+    def statistical_gain(self, idx: torch.Tensor) -> torch.Tensor:
         """Linear gain relative to the hall-average reference, [U] float32."""
-        pl = tf.gather(self._pl_tf, idx)
-        shadowing = tf.random.normal([self.num_ut]) * tf.gather(self._sigma_tf, idx)
+        pl = self._pl_t[idx]
+        shadowing = torch.randn(self.num_ut, generator=rng("cpu")) * self._sigma_t[idx]
         gain_db = -pl + shadowing - 10.0 * math.log10(self.g_ref_statistical)
         self._record(idx, gain_db)
-        return tf.pow(10.0, gain_db / 10.0)
+        return torch.pow(10.0, gain_db / 10.0)
 
-    def raytraced_scale(self, idx: tf.Tensor) -> float:
+    def raytraced_scale(self, idx: torch.Tensor) -> float:
         """Amplitude scale that references traced responses to the hall average."""
-        gain_db = 10.0 * np.log10(self.rt_energy[idx.numpy()] / self.g_ref_raytraced)
-        self._record(idx, tf.constant(gain_db, tf.float32))
+        gain_db = 10.0 * np.log10(self.rt_energy[idx.cpu().numpy()] / self.g_ref_raytraced)
+        self._record(idx, gain_db)
         return 1.0 / math.sqrt(self.g_ref_raytraced)
 
-    def _record(self, idx: tf.Tensor, gain_db: tf.Tensor) -> None:
-        i = idx.numpy()
+    def _record(self, idx: torch.Tensor, gain_db) -> None:
+        i = idx.cpu().numpy()
         self.last = {
             "positions": self.positions[i].copy(),
             "los": self.los[i].copy(),
-            "gain_db": np.asarray(gain_db.numpy() if hasattr(gain_db, "numpy") else gain_db, dtype=np.float64),
+            "gain_db": np.asarray(gain_db.cpu().numpy() if isinstance(gain_db, torch.Tensor) else gain_db, dtype=np.float64),
         }

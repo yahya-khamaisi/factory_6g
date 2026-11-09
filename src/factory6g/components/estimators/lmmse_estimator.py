@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
-import tensorflow as tf
+import torch
 from sionna.phy import Block
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 
@@ -35,17 +35,17 @@ class LMMSEChannelEstimator(Block):
         k_indices = np.arange(self.fft_size)
         delta_k = np.abs(k_indices[:, None] - k_indices[None, :])
         correlation = (self.r_freq ** delta_k).astype(np.float32)
-        self.R_freq = tf.cast(correlation, dtype=tf.complex64)
-
+        self.R_freq = torch.as_tensor(correlation).to(torch.complex64)
         eigvals, eigvecs = np.linalg.eigh(correlation.astype(np.float64))
         eigvals = np.maximum(eigvals.astype(np.float32), 1e-9)
-        self._eigvals = tf.constant(eigvals, dtype=tf.float32)
-        self._eigvecs = tf.constant(eigvecs.astype(np.complex64), dtype=tf.complex64)
-        self._shrinkage_cache: dict[float, tf.Tensor] = {}
+        self._eigvals = torch.as_tensor(eigvals, dtype=torch.float32)
+        self._eigvecs = torch.as_tensor(eigvecs.astype(np.complex64))
+        self._eigvecs_h = self._eigvecs.conj().T.contiguous()
+        self._shrinkage_cache: dict[float, torch.Tensor] = {}
 
-    def _avg_noise(self, no: tf.Tensor) -> float:
-        avg_no = float(tf.reduce_mean(tf.cast(no, tf.float32)).numpy())
-        return max(avg_no, 1e-12)
+    @staticmethod
+    def _avg_noise(no) -> float:
+        return max(float(torch.mean(torch.as_tensor(no, dtype=torch.float32))), 1e-12)
 
     def _noise_bin_key(self, noise_linear: float) -> float | None:
         if self.noise_bin_db <= 0.0:
@@ -53,7 +53,7 @@ class LMMSEChannelEstimator(Block):
         noise_db = 10.0 * np.log10(max(noise_linear, 1e-12))
         return round(noise_db / self.noise_bin_db) * self.noise_bin_db
 
-    def _shrinkage_for_noise(self, noise_linear: float) -> tf.Tensor:
+    def _shrinkage_for_noise(self, noise_linear: float) -> torch.Tensor:
         key = self._noise_bin_key(noise_linear)
         if key is None:
             noise_eff = noise_linear
@@ -61,32 +61,19 @@ class LMMSEChannelEstimator(Block):
             if key in self._shrinkage_cache:
                 return self._shrinkage_cache[key]
             noise_eff = 10.0 ** (key / 10.0)
-
-        shrinkage = self._eigvals / (self._eigvals + noise_eff)
-        shrinkage = tf.cast(shrinkage, tf.complex64)
+        shrinkage = (self._eigvals / (self._eigvals + noise_eff)).to(torch.complex64)
         if key is not None:
             self._shrinkage_cache[key] = shrinkage
         return shrinkage
 
-    def estimate_from_ls(
-        self,
-        h_ls: tf.Tensor,
-        err_var_ls: tf.Tensor,
-        no: tf.Tensor,
-    ) -> Tuple[tf.Tensor, tf.Tensor]:
-        avg_no = self._avg_noise(no)
-        shrinkage = self._shrinkage_for_noise(avg_no)
+    def estimate_from_ls(self, h_ls: torch.Tensor, err_var_ls: torch.Tensor, no) -> Tuple[torch.Tensor, torch.Tensor]:
+        shrinkage = self._shrinkage_for_noise(self._avg_noise(no))
+        flat = h_ls.to(torch.complex64).reshape(-1, self.fft_size)
+        projected = (flat @ self._eigvecs) * shrinkage
+        h_lmmse = (projected @ self._eigvecs_h).reshape(h_ls.shape)
+        smoothing_factor = torch.mean(shrinkage).real
+        return h_lmmse, err_var_ls * smoothing_factor.to(err_var_ls.dtype)
 
-        flat = tf.reshape(tf.cast(h_ls, tf.complex64), [-1, self.fft_size])
-        projected = tf.matmul(flat, self._eigvecs)
-        projected *= shrinkage
-        h_lmmse_flat = tf.matmul(projected, tf.transpose(tf.math.conj(self._eigvecs)))
-        h_lmmse = tf.reshape(h_lmmse_flat, tf.shape(h_ls))
-
-        smoothing_factor = tf.math.real(tf.reduce_mean(shrinkage))
-        err_var_lmmse = err_var_ls * smoothing_factor
-        return h_lmmse, err_var_lmmse
-
-    def call(self, y: tf.Tensor, no: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def call(self, y: torch.Tensor, no: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ls, err_var_ls = self._ls_estimator(y, no)
         return self.estimate_from_ls(h_ls, err_var_ls, no)

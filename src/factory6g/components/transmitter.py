@@ -65,12 +65,11 @@ References:
     - Proakis & Salehi, "Digital Communications" (Modulation)
 """
 
-import tensorflow as tf
+import torch
 from sionna.phy.mapping import BinarySource, Mapper
 from sionna.phy.fec.ldpc import LDPC5GEncoder
 from sionna.phy.ofdm import ResourceGrid, ResourceGridMapper
 
-import tensorflow as tf_ops
 
 from factory6g.models.resource_manager import ResourceDirectives
 
@@ -155,16 +154,10 @@ class Transmitter:
         self._mapper = Mapper("qam", num_bits_per_symbol)  # QAM modulator
         self._rg_mapper = ResourceGridMapper(resource_grid)  # Resource grid mapper
 
-    def sample_information_bits(self, batch_size: int) -> tf.Tensor:
+    def sample_information_bits(self, batch_size: int) -> torch.Tensor:
         num_tx = self.config.get("num_ut", 8)
         num_streams_per_tx = self.config.get("num_ut_ant", 1)
-        with tf.device("/CPU:0"):
-            return self._binary_source([
-                batch_size,
-                num_tx,
-                num_streams_per_tx,
-                self._k
-            ])
+        return self._binary_source([batch_size, num_tx, num_streams_per_tx, self._k])
     
     @property
     def num_info_bits(self) -> int:
@@ -200,7 +193,7 @@ class Transmitter:
         self,
         batch_size: int,
         directives: ResourceDirectives | None = None,
-        bits: tf.Tensor | None = None,
+        bits: torch.Tensor | None = None,
     ) -> tuple:
         """
         Transmit signal through the transmitter chain.
@@ -273,16 +266,16 @@ class Transmitter:
         if directives and directives.active_ut_mask is not None:
             # Active UT mask: 1 = scheduled, 0 = muted
             # Broadcasting: [1, num_tx, 1, 1, 1] allows element-wise multiplication
-            ut_mask = tf_ops.constant(directives.active_ut_mask, dtype=x_rg.dtype)  # [num_tx]
-            ut_mask = tf_ops.reshape(ut_mask, [1, num_tx, 1, 1, 1])
+            ut_mask = torch.as_tensor(directives.active_ut_mask, dtype=torch.float32).to(x_rg.dtype)  # [num_tx]
+            ut_mask = ut_mask.reshape(1, num_tx, 1, 1, 1)
             x_rg = x_rg * ut_mask
         if directives and directives.per_ut_power is not None:
             # Per-UT power scaling: applied in linear scale
             # Power scaling: x_scaled = x * sqrt(P), where P is linear power factor
             # This maintains the same average power per symbol while scaling amplitude
-            ut_power = tf_ops.constant(directives.per_ut_power, dtype=x_rg.dtype)  # [num_tx]
-            ut_power = tf_ops.reshape(ut_power, [1, num_tx, 1, 1, 1])
-            x_rg = x_rg * tf_ops.sqrt(ut_power)
+            ut_power = torch.as_tensor(directives.per_ut_power, dtype=torch.float32)  # [num_tx]
+            ut_power = ut_power.reshape(1, num_tx, 1, 1, 1)
+            x_rg = x_rg * torch.sqrt(ut_power).to(x_rg.dtype)
         
         return x_rg, b, x  # include QAM symbols for diagnostics
     
@@ -290,7 +283,7 @@ class Transmitter:
         self,
         batch_size: int,
         directives: ResourceDirectives | None = None,
-        bits: tf.Tensor | None = None,
+        bits: torch.Tensor | None = None,
     ) -> tuple:
         """
         Alias for call method for convenience.
@@ -306,7 +299,7 @@ class Transmitter:
         """
         return self.call(batch_size, directives=directives, bits=bits)
     
-    def encode_and_map(self, bits: tf.Tensor) -> tf.Tensor:
+    def encode_and_map(self, bits: torch.Tensor) -> torch.Tensor:
         """
         Encode and map custom input bits to resource grid.
         

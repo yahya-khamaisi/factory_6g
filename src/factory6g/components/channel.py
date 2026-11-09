@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import tensorflow as tf
+import torch
 from sionna.phy.channel import (
     ApplyOFDMChannel,
     GenerateOFDMChannel,
@@ -13,6 +13,7 @@ from sionna.phy.ofdm import ResourceGrid
 from .antenna import AntennaConfig
 from .large_scale import HallLargeScale
 from .raytracing import load_bank_split
+from factory6g.sim.rng import rng
 
 # Mean small-scale link energy of each model without normalisation, used to put
 # every model on unit mean energy with one fixed constant (system model v2).
@@ -72,14 +73,13 @@ class ChannelModel:
             self._channel_model = self._create_tr38901_channel()
             self._generator = GenerateOFDMChannel(self._channel_model, resource_grid, normalize_channel=per_slot_norm)
         self._applier = ApplyOFDMChannel()
-        # TR 38.901: dropping the topology and generating the channel eagerly
-        # retains ~0.3 MB of native memory per call, which exhausts memory in
-        # long campaigns. Both steps run together in one traced graph instead.
+        # The TensorFlow stack traced topology drop and channel generation in one
+        # graph to stop a native memory leak; PyTorch runs both eagerly.
         self._tr38901_graph = None
         if channel_model_type not in _NO_TOPOLOGY:
-            self._tr38901_graph = tf.function(self._drop_and_generate, reduce_retracing=True)
+            self._tr38901_graph = self._drop_and_generate
 
-    def _load_rt_bank(self) -> tf.Tensor:
+    def _load_rt_bank(self) -> torch.Tensor:
         path = self.config.get("rt_channel_bank", "data/rt_channel_bank.npz")
         split = self.config.get("rt_bank_split", "eval")
         h = load_bank_split(path, split)  # [N, num_bs_ant, F]
@@ -91,45 +91,45 @@ class ChannelModel:
             )
         if self.config.get("direction", "uplink") != "uplink" or int(self.config.get("num_ut_ant", 1)) != 1:
             raise ValueError("The ray-traced channel bank supports uplink with single-antenna terminals only.")
-        return tf.constant(h, dtype=tf.complex64)
+        return torch.as_tensor(h).to(torch.complex64)
 
     @property
     def last_large_scale(self) -> dict | None:
         """Positions, LOS flags and gains (dB, re hall average) of the latest batch."""
         return None if self._large_scale is None else self._large_scale.last
 
-    def _sample_raytraced_hall(self, batch_size: int) -> tf.Tensor:
+    def _sample_raytraced_hall(self, batch_size: int) -> torch.Tensor:
         # One traced position per terminal for the whole batch; static terminals,
         # so the response is constant over every slot and symbol of the batch.
         idx = self._large_scale.draw_indices()
         scale = self._large_scale.raytraced_scale(idx)
-        h = tf.gather(self._rt_bank, idx) * tf.cast(scale, tf.complex64)   # [U, M, F]
-        h = tf.transpose(h, [1, 0, 2])                                       # [M, U, F]
-        h = h[tf.newaxis, tf.newaxis, :, :, tf.newaxis, tf.newaxis, :]       # [1, 1, M, U, 1, 1, F]
-        return tf.tile(h, [batch_size, 1, 1, 1, 1, self.resource_grid.num_ofdm_symbols, 1])
+        h = self._rt_bank[idx] * scale                                       # [U, M, F]
+        h = h.permute(1, 0, 2)                                               # [M, U, F]
+        h = h[None, None, :, :, None, None, :]                               # [1, 1, M, U, 1, 1, F]
+        return h.repeat(batch_size, 1, 1, 1, 1, self.resource_grid.num_ofdm_symbols, 1)
 
-    def _apply_hall_gain(self, h: tf.Tensor) -> tf.Tensor:
+    def _apply_hall_gain(self, h: torch.Tensor) -> torch.Tensor:
         # Put the small-scale model on unit mean energy with a fixed constant
         # (per-slot and per-terminal fluctuations are kept), then apply each
         # terminal's persistent large-scale gain.
         cmt = self.config.get("channel_model_type", "tr38901")
-        h = h / tf.cast(SMALL_SCALE_MEAN_ENERGY[cmt] ** 0.5, tf.complex64)
+        h = h / SMALL_SCALE_MEAN_ENERGY[cmt] ** 0.5
         gain = self._large_scale.statistical_gain(self._large_scale.draw_indices())   # [U]
-        amp = tf.cast(tf.sqrt(gain), tf.complex64)
-        return h * tf.reshape(amp, [1, 1, 1, -1, 1, 1, 1])
+        amp = torch.sqrt(gain).to(h.device).to(torch.complex64)
+        return h * amp.reshape(1, 1, 1, -1, 1, 1, 1)
 
-    def _sample_raytraced(self, batch_size: int) -> tf.Tensor:
+    def _sample_raytraced(self, batch_size: int) -> torch.Tensor:
         num_ut = int(self.config.get("num_ut", 4))
-        idx = tf.random.uniform([batch_size, num_ut], maxval=tf.shape(self._rt_bank)[0], dtype=tf.int32)
-        h = tf.gather(self._rt_bank, idx)                      # [B, U, M, F]
+        idx = torch.randint(0, self._rt_bank.shape[0], (batch_size, num_ut), generator=rng("cpu"))
+        h = self._rt_bank[idx]                                  # [B, U, M, F]
         # Same per-link normalisation as cir_to_ofdm_channel(normalize=True):
         # unit mean energy over receive antennas and subcarriers.
-        energy = tf.reduce_mean(tf.square(tf.abs(h)), axis=(2, 3), keepdims=True)
-        h = h / tf.cast(tf.sqrt(energy), tf.complex64)
-        h = tf.transpose(h, [0, 2, 1, 3])                       # [B, M, U, F]
-        h = h[:, tf.newaxis, :, :, tf.newaxis, tf.newaxis, :]   # [B, 1, M, U, 1, 1, F]
+        energy = torch.mean(torch.abs(h) ** 2, dim=(2, 3), keepdim=True)
+        h = h / torch.sqrt(energy).to(torch.complex64)
+        h = h.permute(0, 2, 1, 3)                               # [B, M, U, F]
+        h = h[:, None, :, :, None, None, :]                     # [B, 1, M, U, 1, 1, F]
         # Static terminals: the response is constant over the slot.
-        return tf.tile(h, [1, 1, 1, 1, 1, self.resource_grid.num_ofdm_symbols, 1])
+        return h.repeat(1, 1, 1, 1, 1, self.resource_grid.num_ofdm_symbols, 1)
 
     def _create_tr38901_channel(self):
         channel_params = {
@@ -143,7 +143,9 @@ class ChannelModel:
         }
         scenario_lower = self.config.get("scenario", "umi").lower()
         if scenario_lower == "umi":
-            return UMi(**channel_params)
+            # Sionna 2.x defaults UMi to TR 38.901 v19.2; pin v16.1, the edition
+            # Sionna 1.2.1 implemented, so results stay comparable.
+            return UMi(**channel_params, spec_version=str(self.config.get("tr38901_spec_version", "16.1")))
         if scenario_lower == "uma":
             return UMa(**channel_params)
         if scenario_lower == "rma":
@@ -168,7 +170,7 @@ class ChannelModel:
             num_tx_ant=num_tx_ant,
         )
 
-    def _drop_and_generate(self, batch_size: int) -> tf.Tensor:
+    def _drop_and_generate(self, batch_size: int) -> torch.Tensor:
         self._set_topology_eager(batch_size)
         return self._generator(batch_size)
 
@@ -190,7 +192,7 @@ class ChannelModel:
         if hasattr(self._channel_model, "set_topology"):
             self._channel_model.set_topology(*topology)
 
-    def sample_frequency_response(self, batch_size: int) -> tf.Tensor:
+    def sample_frequency_response(self, batch_size: int) -> torch.Tensor:
         cmt = self.config.get("channel_model_type", "tr38901")
         if cmt == "awgn":
             direction = self.config.get("direction", "uplink")
@@ -205,47 +207,36 @@ class ChannelModel:
                 self.resource_grid.num_ofdm_symbols,
                 self.resource_grid.fft_size,
             ]
-            return tf.ones(shape, dtype=tf.complex64)
+            return torch.ones(shape, dtype=torch.complex64)
         if cmt == "raytraced":
-            with tf.device("/CPU:0"):
-                if self._large_scale is not None:
-                    return self._sample_raytraced_hall(batch_size)
-                return self._sample_raytraced(batch_size)
-        with tf.device("/CPU:0"):
-            if self._tr38901_graph is not None:
-                h = self._tr38901_graph(batch_size)
-            else:
-                h = self._generator(batch_size)
+            if self._large_scale is not None:
+                return self._sample_raytraced_hall(batch_size)
+            return self._sample_raytraced(batch_size)
+        if self._tr38901_graph is not None:
+            h = self._tr38901_graph(batch_size)
+        else:
+            h = self._generator(batch_size)
         if cmt == "rician":
-            k = tf.cast(self._rician_k_factor, tf.float32)
-            los = tf.cast(tf.sqrt(k / (k + 1.0)), tf.complex64)
-            nlos_scale = tf.cast(tf.sqrt(1.0 / (k + 1.0)), tf.complex64)
-            h = los + nlos_scale * h
+            k = float(self._rician_k_factor)
+            h = (k / (k + 1.0)) ** 0.5 + (1.0 / (k + 1.0)) ** 0.5 * h
         if self._large_scale is not None:
             h = self._apply_hall_gain(h)
         return h
 
-    def apply_frequency_response(self, x_rg: tf.Tensor, h_freq: tf.Tensor) -> tf.Tensor:
-        with tf.device("/CPU:0"):
-            return self._applier(x_rg, h_freq, no=None)
+    def apply_frequency_response(self, x_rg: torch.Tensor, h_freq: torch.Tensor) -> torch.Tensor:
+        return self._applier(x_rg, h_freq, no=None)
 
-    def sample_noise(self, y_shape: tf.TensorShape | tf.Tensor, noise_var: tf.Tensor) -> tf.Tensor:
-        if isinstance(y_shape, tf.TensorShape):
-            if None in y_shape:
-                raise ValueError("Cannot sample noise from a partially defined TensorShape.")
-            shape = y_shape.as_list()
-        else:
-            shape = y_shape
+    def sample_noise(self, y_shape, noise_var) -> torch.Tensor:
+        shape = [int(v) for v in y_shape]
+        noise_std = torch.sqrt(torch.as_tensor(noise_var, dtype=torch.float32) / 2.0)
+        g = rng("cpu")
+        noise_re = torch.randn(shape, generator=g) * noise_std
+        noise_im = torch.randn(shape, generator=g) * noise_std
+        return torch.complex(noise_re, noise_im)
 
-        with tf.device("/CPU:0"):
-            noise_std = tf.sqrt(tf.cast(noise_var, tf.float32) / 2.0)
-            noise_re = tf.random.normal(shape, stddev=noise_std, dtype=tf.float32)
-            noise_im = tf.random.normal(shape, stddev=noise_std, dtype=tf.float32)
-        return tf.complex(noise_re, noise_im)
-
-    def received_shape_from_response(self, h_freq: tf.Tensor) -> tf.Tensor:
-        shape = tf.shape(h_freq)
-        return tf.stack([shape[0], shape[1], shape[2], shape[5], shape[6]])
+    def received_shape_from_response(self, h_freq: torch.Tensor) -> list[int]:
+        shape = h_freq.shape
+        return [shape[0], shape[1], shape[2], shape[5], shape[6]]
 
     def get_channel_model(self):
         return self._channel_model

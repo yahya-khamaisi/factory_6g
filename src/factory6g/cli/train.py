@@ -134,17 +134,9 @@ def _seed_everything(seed: int) -> None:
     Mirrors factory6g.cli.run so that a dataset and a set of weights can be
     regenerated from a seed, the way a simulation campaign can.
     """
-    import random
+    from factory6g.sim.rng import seed_all
 
-    import numpy as np
-    # sionna.phy is not exposed by importing the top-level package alone.
-    import sionna.phy
-    import tensorflow as tf
-
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    sionna.phy.config.seed = seed
+    seed_all(seed)
 
 
 def main() -> int:

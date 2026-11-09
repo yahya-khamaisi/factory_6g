@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import tensorflow as tf
+from factory6g.sim.rng import seed_all
 from sionna.phy.ofdm import ResourceGrid
 
 from factory6g.components.antenna import AntennaConfig
@@ -41,7 +41,7 @@ def _channel(model: str, split: str = "eval") -> ChannelModel:
 
 
 def test_raytraced_hall_is_static_over_batch_and_follows_traced_gain():
-    tf.random.set_seed(1)
+    seed_all(1)
     ch = _channel("raytraced")
     h = ch.sample_frequency_response(6).numpy()
     assert h.shape == (6, 1, 8, 4, 1, 14, 128)
@@ -54,7 +54,7 @@ def test_raytraced_hall_is_static_over_batch_and_follows_traced_gain():
 
 @pytest.mark.parametrize("model", ["rayleigh", "rician", "tr38901"])
 def test_statistical_hall_gain_persists_and_sets_per_terminal_energy(model):
-    tf.random.set_seed(2)
+    seed_all(2)
     ch = _channel(model)
     h = ch.sample_frequency_response(40).numpy()
     gain_db = ch.last_large_scale["gain_db"]
@@ -69,7 +69,7 @@ def test_statistical_hall_gain_persists_and_sets_per_terminal_energy(model):
 
 
 def test_reference_puts_average_terminal_at_nominal_ebno():
-    tf.random.set_seed(3)
+    seed_all(3)
     ls = HallLargeScale(BANK, "eval", num_ut=4, carrier_frequency_hz=3.5e9)
     g = np.concatenate([ls.statistical_gain(ls.draw_indices()).numpy() for _ in range(1500)])
     assert np.mean(g) == pytest.approx(1.0, rel=0.1)

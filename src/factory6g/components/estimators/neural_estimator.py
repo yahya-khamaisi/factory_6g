@@ -6,7 +6,7 @@ import os
 from typing import Tuple
 
 import numpy as np
-import tensorflow as tf
+import torch
 from sionna.phy import Block
 from sionna.phy.ofdm import LSChannelEstimator, ResourceGrid
 from sionna.phy.utils import ebnodb2no
@@ -60,40 +60,75 @@ def load_conditioning(model_path: str) -> dict:
     return dict(LEGACY_CONDITIONING)
 
 
-def build_neural_estimator_model(num_ofdm_symbols: int, fft_size: int) -> tf.keras.Model:
-    """Build the SNR-conditioned residual Conv2D network used for channel estimation.
+class NeuralEstimatorNet(torch.nn.Module):
+    """SNR-conditioned residual Conv2D network used for channel estimation.
 
     Input shape:  [N, num_ofdm_symbols, fft_size, 3]
                   channels: re(h_ls), im(h_ls), snr_map (normalised Eb/No)
     Output shape: [N, num_ofdm_symbols, fft_size, 2]
                   channels: re(delta), im(delta)  — the correction to add to h_ls
 
-    At inference: h_hat = h_ls + complex(re(delta), im(delta))
+    Channels-last at the interface, as in the TensorFlow version, so datasets
+    and weights carry over; the convolutions run channels-first inside.
     """
-    inputs = tf.keras.layers.Input(
-        shape=(num_ofdm_symbols, fft_size, 3), name="h_ls_snr"
-    )
-    x = tf.keras.layers.Conv2D(64, (9, 9), padding="same", activation="relu", name="conv1")(inputs)
-    x = tf.keras.layers.Conv2D(32, (5, 5), padding="same", activation="relu", name="conv2")(x)
-    outputs = tf.keras.layers.Conv2D(2, (5, 5), padding="same", activation="linear", name="conv3")(x)
-    return tf.keras.Model(inputs=inputs, outputs=outputs, name="neural_channel_estimator")
+
+    def __init__(self, num_ofdm_symbols: int, fft_size: int) -> None:
+        super().__init__()
+        self.num_ofdm_symbols = int(num_ofdm_symbols)
+        self.fft_size = int(fft_size)
+        self.conv1 = torch.nn.Conv2d(3, 64, 9, padding=4)
+        self.conv2 = torch.nn.Conv2d(64, 32, 5, padding=2)
+        self.conv3 = torch.nn.Conv2d(32, 2, 5, padding=2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.permute(0, 3, 1, 2)
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        return self.conv3(x).permute(0, 2, 3, 1)
+
+
+def build_neural_estimator_model(num_ofdm_symbols: int, fft_size: int) -> NeuralEstimatorNet:
+    return NeuralEstimatorNet(num_ofdm_symbols, fft_size)
+
+
+def torch_weights_path(model_path: str) -> str:
+    """``x.keras`` -> ``x.pt``; any other path is used as given."""
+    return model_path[: -len(".keras")] + ".pt" if model_path.endswith(".keras") else model_path
+
+
+def load_neural_estimator(model_path: str, num_ofdm_symbols: int, fft_size: int) -> NeuralEstimatorNet:
+    """Load PyTorch weights (``.pt``), or convert the Keras archive of the TensorFlow stack."""
+    net = NeuralEstimatorNet(num_ofdm_symbols, fft_size)
+    pt = torch_weights_path(model_path)
+    if os.path.exists(pt):
+        net.load_state_dict(torch.load(pt, map_location="cpu", weights_only=True))
+    elif model_path.endswith(".keras") and os.path.exists(model_path):
+        from factory6g.torch_io import conv2d_from_keras, keras_layer_weights
+
+        layers = keras_layer_weights(model_path)
+        if len(layers) != 3:
+            raise ValueError(f"Expected 3 conv layers in {model_path}, found {[n for n, _ in layers]}.")
+        for conv, (_, (kernel, bias)) in zip((net.conv1, net.conv2, net.conv3), layers):
+            w, b = conv2d_from_keras(kernel, bias)
+            if tuple(w.shape) != tuple(conv.weight.shape):
+                raise ValueError(f"Kernel shape {tuple(w.shape)} does not fit {tuple(conv.weight.shape)}.")
+            conv.weight.data.copy_(w)
+            conv.bias.data.copy_(b)
+    else:
+        raise OSError(f"No weights at '{pt}' or '{model_path}'.")
+    return net.eval()
 
 
 class NeuralChannelEstimator(Block):
     """Nonlinear channel estimator using a pre-trained SNR-conditioned Conv2D network.
 
     The network takes the LS channel estimate together with a normalised SNR
-    map and predicts the *residual correction* (h_true - h_ls).  The final
-    estimate is h_hat = h_ls + delta, which is easier to learn than direct
-    channel regression because the corrections are small at high SNR.
+    map and predicts the *residual correction* (h_true - h_ls). The final
+    estimate is h_hat = h_ls + delta.
 
-    Training:
-        Use ``docker compose run train-estimator`` (or ``python train.py``) to
-        generate training data and train the network.  Weights are saved to the
-        path specified by ``model_path`` (default: ``models/neural_estimator.keras``).
-
-    If no weights file is found at ``model_path``, falls back to LS estimation
-    and emits a warning.
+    Weights are read from ``<model_path minus .keras>.pt`` when present, else
+    converted from the Keras archive at ``model_path`` (TensorFlow stack). If
+    neither exists, falls back to LS estimation and emits a warning.
     """
 
     def __init__(
@@ -109,102 +144,59 @@ class NeuralChannelEstimator(Block):
         self.num_ofdm_symbols = int(resource_grid.num_ofdm_symbols)
         self.fft_size = int(resource_grid.fft_size)
         self.nn_err_var_scale = float(nn_err_var_scale)
-        # Offset between -10*log10(no) and Eb/No in dB. The noise variance comes
-        # from ebnodb2no, which divides by bits per symbol, code rate and the
-        # data share of the grid energy, so the offset must be removed to feed
-        # the network the same Eb/No it was trained on.
+        # Offset between -10*log10(no) and Eb/No in dB (ebnodb2no divides by bits
+        # per symbol, code rate and the data share of the grid energy).
         cfg = config or {}
         self._no_to_ebno_offset_db = float(
-            -10.0
-            * np.log10(
-                float(
-                    ebnodb2no(
-                        0.0,
-                        int(cfg.get("num_bits_per_symbol", 2)),
-                        float(cfg.get("coderate", 0.5)),
-                        resource_grid,
-                    )
-                )
-            )
+            -10.0 * np.log10(float(ebnodb2no(0.0, int(cfg.get("num_bits_per_symbol", 2)), float(cfg.get("coderate", 0.5)), resource_grid)))
         )
         self._nn_available = False
-        self._nn_model: tf.keras.Model | None = None
+        self._nn_model: NeuralEstimatorNet | None = None
         self.conditioning = load_conditioning(model_path)
         self._cond_min_db, self._cond_max_db = self.conditioning["range_db"]
-
         try:
-            self._nn_model = tf.keras.models.load_model(model_path, compile=False)
+            self._nn_model = load_neural_estimator(model_path, self.num_ofdm_symbols, self.fft_size)
             self._nn_available = True
-            logger.info("NeuralChannelEstimator: loaded weights from '%s'.", model_path)
-        except (OSError, ValueError) as exc:
-            logger.warning(
-                "NeuralChannelEstimator: could not load model from '%s' (%s). "
-                "Falling back to plain LS. Run 'python train.py' inside Docker to train.",
-                model_path,
-                exc,
-            )
+            logger.info("NeuralChannelEstimator: loaded weights for '%s'.", model_path)
+        except (OSError, ValueError, KeyError) as exc:
+            logger.warning("NeuralChannelEstimator: could not load model from '%s' (%s). Falling back to plain LS.", model_path, exc)
 
-    def effective_ebno_db(self, h_ls: tf.Tensor, err_var_ls: tf.Tensor, ebno_db: tf.Tensor) -> tf.Tensor:
-        """TensorFlow twin of ``effective_ebno_db_np``: one value per antenna-terminal grid."""
-        energy = tf.reduce_mean(tf.abs(h_ls) ** 2, axis=_POOL_AXES, keepdims=True)
-        err = tf.reduce_mean(tf.cast(err_var_ls, energy.dtype))
-        power = tf.maximum(energy - err, _MIN_LINK_POWER)
-        cond = tf.cast(ebno_db, energy.dtype) + 10.0 * tf.math.log(power) / tf.math.log(tf.constant(10.0, energy.dtype))
-        return tf.broadcast_to(cond[..., 0, 0], tf.shape(h_ls)[:-2])
+    @staticmethod
+    def effective_ebno_db(h_ls: torch.Tensor, err_var_ls: torch.Tensor, ebno_db: torch.Tensor) -> torch.Tensor:
+        """PyTorch twin of ``effective_ebno_db_np``: one value per antenna-terminal grid."""
+        energy = torch.mean(torch.abs(h_ls) ** 2, dim=_POOL_AXES, keepdim=True)
+        err = torch.mean(torch.as_tensor(err_var_ls).to(energy.dtype))
+        power = torch.clamp(energy - err, min=_MIN_LINK_POWER)
+        cond = torch.as_tensor(ebno_db, dtype=energy.dtype) + 10.0 * torch.log10(power)
+        return cond[..., 0, 0].expand(h_ls.shape[:-2])
 
-    def _apply_network(self, h_ls: tf.Tensor, cond_db: tf.Tensor) -> tf.Tensor:
-        """Reshape h_ls + conditioning map, run the network, add residual back to h_ls.
+    def _apply_network(self, h_ls: torch.Tensor, cond_db: torch.Tensor) -> torch.Tensor:
+        original_shape = h_ls.shape
+        flat = h_ls.reshape(-1, self.num_ofdm_symbols, self.fft_size)
+        ri = torch.stack([flat.real, flat.imag], dim=-1).to(torch.float32)
+        n_flat = flat.shape[0]
+        cond = torch.as_tensor(cond_db, dtype=torch.float32)
+        cond = cond.reshape(-1).expand(n_flat) if cond.dim() == 0 else cond.reshape(-1)
+        cond_norm = torch.clamp((cond - self._cond_min_db) / (self._cond_max_db - self._cond_min_db), 0.0, 1.0)
+        snr_map = cond_norm[:, None, None, None].expand(n_flat, self.num_ofdm_symbols, self.fft_size, 1)
+        with torch.no_grad():
+            delta_ri = self._nn_model(torch.cat([ri, snr_map], dim=-1))
+        delta = torch.complex(delta_ri[..., 0], delta_ri[..., 1]).to(h_ls.dtype)
+        return (flat + delta).reshape(original_shape)
 
-        ``cond_db`` is a scalar (legacy batch Eb/No) or one value per grid,
-        shaped like ``h_ls`` without its last two axes.
-        """
-        original_shape = tf.shape(h_ls)
-        # Flatten all leading dims into a batch dimension
-        flat = tf.reshape(h_ls, [-1, self.num_ofdm_symbols, self.fft_size])
-        # Split complex → real/imag: [N, ofdm_syms, fft_size, 2]
-        ri = tf.stack([tf.math.real(flat), tf.math.imag(flat)], axis=-1)
-        ri = tf.cast(ri, tf.float32)
-
-        # Normalised conditioning map: per grid → [N, ofdm_syms, fft_size, 1]
-        n_flat = tf.shape(flat)[0]
-        cond = tf.cast(cond_db, tf.float32)
-        cond = tf.broadcast_to(tf.reshape(cond, [-1]), [n_flat]) if cond.shape.rank == 0 else tf.reshape(cond, [-1])
-        cond_norm = tf.clip_by_value(
-            (cond - self._cond_min_db) / (self._cond_max_db - self._cond_min_db), 0.0, 1.0
-        )
-        snr_map = tf.ones([n_flat, self.num_ofdm_symbols, self.fft_size, 1]) * cond_norm[:, None, None, None]
-
-        ri3 = tf.concat([ri, snr_map], axis=-1)  # [N, ofdm_syms, fft_size, 3]
-
-        # Network predicts the correction (residual)
-        delta_ri = self._nn_model(ri3, training=False)  # [N, ofdm_syms, fft_size, 2]
-
-        delta = tf.complex(delta_ri[..., 0], delta_ri[..., 1])
-        delta = tf.cast(tf.reshape(delta, tf.shape(flat)), h_ls.dtype)
-
-        h_refined_flat = flat + delta
-        return tf.reshape(h_refined_flat, original_shape)
-
-    def ebno_db_from_noise(self, no: tf.Tensor) -> tf.Tensor:
+    def ebno_db_from_noise(self, no) -> torch.Tensor:
         """Invert ebnodb2no: recover the Eb/No (dB) that produced noise variance ``no``."""
-        no_mean = tf.reduce_mean(tf.cast(no, tf.float32))
-        # Guard against log(0): clamp noise to a small positive value
-        no_safe = tf.maximum(no_mean, 1e-10)
-        no_db = -10.0 * tf.math.log(no_safe) / tf.math.log(10.0)
-        return no_db - self._no_to_ebno_offset_db
+        no_safe = torch.clamp(torch.mean(torch.as_tensor(no, dtype=torch.float32)), min=1e-10)
+        return -10.0 * torch.log10(no_safe) - self._no_to_ebno_offset_db
 
-    def call(self, y: tf.Tensor, no: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def call(self, y: torch.Tensor, no: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ls, err_var_ls = self._ls_estimator(y, no)
-
         if not self._nn_available:
             return h_ls, err_var_ls
-
         ebno_db = self.ebno_db_from_noise(no)
         if self.conditioning["input"] == COND_LS_ENERGY:
             cond_db = self.effective_ebno_db(h_ls, err_var_ls, ebno_db)
         else:
             cond_db = ebno_db
-
         h_hat = self._apply_network(h_ls, cond_db)
-        err_var = err_var_ls * tf.cast(self.nn_err_var_scale, err_var_ls.dtype)
-        return h_hat, err_var
+        return h_hat, err_var_ls * self.nn_err_var_scale

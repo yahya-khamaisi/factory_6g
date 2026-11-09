@@ -10,6 +10,20 @@ services:
       - ./models:/app/models:ro      # trained checkpoints, without rebuilding the image
       - ./src:/app/src:ro            # live package source, as every locked run used
 
+  simulation-torch:    # Phase 4: Sionna 2.2 on PyTorch (Dockerfile.torch); same mounts as `simulation`
+    build:
+      context: .
+      dockerfile: Dockerfile.torch
+    image: factory6g-torch:latest
+    volumes:
+      - ./results:/app/results
+      - ./config:/app/config:ro
+      - ./data:/app/data:ro
+      - ./models:/app/models          # writable: training writes PyTorch weights here
+      - ./src:/app/src:ro
+      - ./scripts:/app/scripts:ro
+      - ./tests:/app/tests:ro
+
   simulation-gpu:      # GPU-accelerated (set force_cpu: false in config/config.json)
     build: .
     image: factory6g:latest

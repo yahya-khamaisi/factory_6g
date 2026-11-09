@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+import torch
 
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.models.rl_resource_manager import RLResourceManager
@@ -30,7 +31,7 @@ def test_fairness_debt_marks_starved_terminal():
 
 def test_rl_checkpoint_routes_to_rl_manager(tmp_path):
     net = build_actor_critic(4, 130)
-    net.save(tmp_path / "policy.keras")
+    torch.save(net.state_dict(), tmp_path / "policy.pt")
     (tmp_path / "metadata.json").write_text(json.dumps({"format": RL_CHECKPOINT_FORMAT}))
     mgr = create_resource_manager(
         "drl", num_ut=4, num_active=2, cnn_model_path=None, drl_model_path=str(tmp_path)

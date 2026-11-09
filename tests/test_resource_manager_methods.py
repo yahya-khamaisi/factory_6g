@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+import torch
 
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.sim.config import load_config
@@ -26,7 +26,7 @@ def _make_feedback() -> ResourceManagerFeedback:
     for ut_idx in range(4):
         h_hat[0, 0, 0, ut_idx, 0, 0, :] = user_vectors[ut_idx]
     err_var = np.zeros_like(h_hat, dtype=np.float32)
-    return ResourceManagerFeedback(h_hat=tf.constant(h_hat), err_var=tf.constant(err_var))
+    return ResourceManagerFeedback(h_hat=torch.as_tensor(h_hat), err_var=torch.as_tensor(err_var))
 
 
 def test_resource_manager_config_parses_new_fields_without_conftest():

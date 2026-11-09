@@ -13,7 +13,7 @@ from factory6g.sim.env import configure_env
 configure_env(force_cpu=True, gpu_num=0)
 
 import numpy as np
-import tensorflow as tf
+import torch
 from tqdm import tqdm
 
 from factory6g.models.model import Model
@@ -22,14 +22,14 @@ from factory6g.sim.config import load_config
 from factory6g.sim.stages.common import ber_upper_confidence_bound, extract_error_stats
 
 
-def _preprocess_channel_for_cnn(h_hat: tf.Tensor) -> np.ndarray:
-    h_hat = tf.cast(h_hat, tf.complex64)
-    power = tf.abs(h_hat) ** 2
-    power = tf.reduce_mean(power, axis=1)
-    power = tf.reduce_mean(power, axis=1)
-    power = tf.reduce_mean(power, axis=2)
-    channel_energy = tf.reduce_mean(power, axis=2)
-    return channel_energy[0].numpy().astype(np.float32)
+def _preprocess_channel_for_cnn(h_hat) -> np.ndarray:
+    h = np.asarray(h_hat.numpy() if hasattr(h_hat, "numpy") else h_hat).astype(np.complex64)
+    power = np.abs(h) ** 2
+    power = power.mean(axis=1)
+    power = power.mean(axis=1)
+    power = power.mean(axis=2)
+    channel_energy = power.mean(axis=2)
+    return channel_energy[0].astype(np.float32)
 
 
 _VALID_CHANNELS = {"tr38901", "rayleigh", "rician", "raytraced", "awgn"}
@@ -276,8 +276,9 @@ def generate_dataset(
     if objective not in {"utility", "ber_first"}:
         raise ValueError("objective must be one of: utility, ber_first.")
 
-    tf.random.set_seed(seed)
-    np.random.seed(seed)
+    from factory6g.sim.rng import seed_all
+
+    seed_all(seed)
 
     app_config = load_config(config_path)
     system_config = _load_runtime_config(config_path, scenario, channel=channel)

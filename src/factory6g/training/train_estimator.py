@@ -79,7 +79,9 @@ def generate_dataset(
         rt_bank_split: bank split for ray-traced samples. Training data uses
               "train"; "eval" builds a held-out test set at unseen positions.
     """
-    import tensorflow as tf  # noqa: F401 — ensure TF is initialised
+    import torch
+
+    torch.set_grad_enabled(False)
     from factory6g.models.model import Model
 
     import glob
@@ -237,25 +239,22 @@ def generate_dataset(
 # Network definition
 # ---------------------------------------------------------------------------
 
-def build_model(num_ofdm_symbols: int, fft_size: int) -> "tf.keras.Model":
-    """Build SNR-conditioned residual Conv2D estimator network.
+def build_model(num_ofdm_symbols: int, fft_size: int):
+    """The residual Conv2D network of the neural estimator (PyTorch)."""
+    from factory6g.components.estimators.neural_estimator import NeuralEstimatorNet
 
-    Input shape:  [N, num_ofdm_symbols, fft_size, 3]
-                  channels: re(h_ls), im(h_ls), snr_map (scalar broadcast)
-    Output shape: [N, num_ofdm_symbols, fft_size, 2]
-                  channels: re(delta), im(delta)   where delta = h_true - h_ls
+    return NeuralEstimatorNet(num_ofdm_symbols, fft_size)
 
-    At inference: h_hat = h_ls + complex(re(delta), im(delta))
-    """
-    import tensorflow as tf
 
-    inputs = tf.keras.layers.Input(
-        shape=(num_ofdm_symbols, fft_size, 3), name="h_ls_snr"
-    )
-    x = tf.keras.layers.Conv2D(64, (9, 9), padding="same", activation="relu", name="conv1")(inputs)
-    x = tf.keras.layers.Conv2D(32, (5, 5), padding="same", activation="relu", name="conv2")(x)
-    outputs = tf.keras.layers.Conv2D(2, (5, 5), padding="same", activation="linear", name="conv3")(x)
-    return tf.keras.Model(inputs=inputs, outputs=outputs, name="neural_channel_estimator")
+def _predict(net, x: np.ndarray, batch_size: int) -> np.ndarray:
+    import torch
+
+    net.eval()
+    out = []
+    with torch.no_grad():
+        for start in range(0, len(x), batch_size):
+            out.append(net(torch.as_tensor(x[start:start + batch_size])).numpy())
+    return np.concatenate(out, axis=0) if out else np.zeros((0,) + x.shape[1:-1] + (2,), np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -360,7 +359,7 @@ def _evaluate_on_test(net, reader: _DatasetReader, batch_size: int) -> dict:
         return min(max(k, 0), len(band_edges) - 2)
 
     for h_ls, h_res, ebno, cond, ch in reader.iter_split("test"):
-        delta = net.predict(reader.inputs(h_ls, cond), batch_size=batch_size, verbose=0)
+        delta = _predict(net, reader.inputs(h_ls, cond), batch_size)
         delta_c = delta[..., 0] + 1j * delta[..., 1]
         err_ls = np.sum(np.abs(h_res) ** 2, axis=(1, 2))
         err_nn = np.sum(np.abs(h_res - delta_c) ** 2, axis=(1, 2))
@@ -428,7 +427,14 @@ def train(
     """
     if loss_weighting not in {"none", "noise"}:
         raise ValueError(f"loss_weighting must be 'none' or 'noise' (got {loss_weighting!r}).")
-    import tensorflow as tf
+    import copy as _copy
+
+    import torch
+
+    torch.set_grad_enabled(True)
+    if seed is not None:
+        torch.manual_seed(int(seed))
+    shuffle_rng = np.random.default_rng(seed)
 
     reader = _DatasetReader(dataset_path)
     logger.info("Network conditioning: %s", reader.conditioning)
@@ -446,50 +452,83 @@ def train(
             return np.ones(len(ebno_db), dtype=np.float32)
         return (10.0 ** (np.asarray(ebno_db, dtype=np.float64) / 10.0) / weight_norm).astype(np.float32)
 
-    def _sample_gen(split: str):
-        def gen():
-            for h_ls, h_res, ebno, cond, _ in reader.iter_split(split):
-                x = reader.inputs(h_ls, cond)
-                y = reader.to_ri(h_res)
-                # Shape (1, 1) so the weight broadcasts over the per-pixel loss
-                # that Keras MSE leaves after reducing the last axis.
-                w = _sample_weight(ebno).reshape(-1, 1, 1)
-                for i in range(len(x)):
-                    yield x[i], y[i], w[i]
-        return gen
+    def _batches(split: str, shuffle: bool):
+        """Mini-batches of (x, y, w); training shuffles within a 4096-sample buffer, like the TensorFlow input pipeline."""
+        buf_x, buf_y, buf_w = [], [], []
 
-    sig = (
-        tf.TensorSpec(shape=(reader.num_ofdm_symbols, reader.fft_size, 3), dtype=tf.float32),
-        tf.TensorSpec(shape=(reader.num_ofdm_symbols, reader.fft_size, 2), dtype=tf.float32),
-        tf.TensorSpec(shape=(1, 1), dtype=tf.float32),
-    )
-    ds_train = (
-        tf.data.Dataset.from_generator(_sample_gen("train"), output_signature=sig)
-        .shuffle(4096, seed=seed, reshuffle_each_iteration=True)
-        .batch(batch_size)
-        .repeat()
-        .prefetch(2)
-    )
-    ds_val = tf.data.Dataset.from_generator(_sample_gen("val"), output_signature=sig).batch(batch_size).repeat().prefetch(2)
+        def _flush(final: bool):
+            nonlocal buf_x, buf_y, buf_w
+            x, y, w = np.concatenate(buf_x), np.concatenate(buf_y), np.concatenate(buf_w)
+            order = shuffle_rng.permutation(len(x)) if shuffle else np.arange(len(x))
+            keep = len(x) if final else (len(x) // batch_size) * batch_size
+            for start in range(0, keep, batch_size):
+                sel = order[start:start + batch_size]
+                yield x[sel], y[sel], w[sel]
+            rest = order[keep:]
+            buf_x, buf_y, buf_w = [x[rest]], [y[rest]], [w[rest]]
+
+        for h_ls, h_res, ebno, cond, _ in reader.iter_split(split):
+            buf_x.append(reader.inputs(h_ls, cond))
+            buf_y.append(reader.to_ri(h_res))
+            buf_w.append(_sample_weight(ebno))
+            if sum(len(b) for b in buf_x) >= 4096:
+                yield from _flush(final=False)
+        if buf_x and sum(len(b) for b in buf_x):
+            yield from _flush(final=True)
+
+    def _loss(net, x, y, w):
+        pred = net(torch.as_tensor(x))
+        # Keras MSE with sample weights: mean over the real/imag axis, weight, mean over the rest.
+        per_pixel = torch.mean((pred - torch.as_tensor(y)) ** 2, dim=-1)
+        return torch.mean(per_pixel * torch.as_tensor(w)[:, None, None])
 
     net = build_model(reader.num_ofdm_symbols, reader.fft_size)
-    net.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), loss="mse")
-    net.summary(print_fn=logger.info)
-    callbacks = [
-        tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, min_lr=1e-6, verbose=1),
-        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=7, restore_best_weights=True),
-    ]
-    history = net.fit(
-        ds_train,
-        epochs=epochs,
-        steps_per_epoch=max(1, reader.counts["train"] // batch_size),
-        validation_data=ds_val,
-        validation_steps=max(1, reader.counts["val"] // batch_size),
-        callbacks=callbacks,
-        verbose=2,
-    )
-    net.save(model_output_path)
-    logger.info("Model saved to '%s'.", model_output_path)
+    opt = torch.optim.Adam(net.parameters(), lr=1e-3, eps=1e-7)
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode="min", factor=0.5, patience=3, min_lr=1e-6)
+    logger.info("Network: %s (%d parameters)", net, sum(p.numel() for p in net.parameters()))
+    history: dict[str, list[float]] = {"loss": [], "val_loss": []}
+    best_val, best_state, since_best = float("inf"), None, 0
+    for epoch in range(epochs):
+        net.train()
+        losses = []
+        for x, y, w in _batches("train", shuffle=True):
+            loss = _loss(net, x, y, w)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            losses.append(float(loss.detach()))
+        net.eval()
+        with torch.no_grad():
+            val = [(float(_loss(net, x, y, w)), len(x)) for x, y, w in _batches("val", shuffle=False)]
+        val_loss = sum(v * n for v, n in val) / max(1, sum(n for _, n in val))
+        history["loss"].append(float(np.mean(losses)) if losses else float("nan"))
+        history["val_loss"].append(val_loss)
+        logger.info("Epoch %d/%d - loss %.6g - val_loss %.6g - lr %.2g", epoch + 1, epochs, history["loss"][-1], val_loss,
+                    opt.param_groups[0]["lr"])
+        print(f"Epoch {epoch + 1}/{epochs} loss={history['loss'][-1]:.6g} val_loss={val_loss:.6g}", flush=True)
+        sched.step(val_loss)
+        if val_loss < best_val:
+            best_val, best_state, since_best = val_loss, _copy.deepcopy(net.state_dict()), 0
+        else:
+            since_best += 1
+            if since_best >= 7:
+                break
+    if best_state is not None:
+        net.load_state_dict(best_state)
+    net.eval()
+    torch.set_grad_enabled(False)
+    from factory6g.components.estimators.neural_estimator import torch_weights_path
+
+    weights_path = torch_weights_path(model_output_path)
+    torch.save(net.state_dict(), weights_path)
+    logger.info("Model saved to '%s'.", weights_path)
+
+    class _History:
+        pass
+
+    history_obj = _History()
+    history_obj.history = history
+    history = history_obj
 
     metadata = {
         "model_path": model_output_path,
@@ -499,6 +538,7 @@ def train(
             "batch_size", "ebno_db_range", "seed", "created_at_utc")},
         "split": {"rule": "sample index mod 10: 0-7 train, 8 validation, 9 test", "counts": reader.counts},
         "training": {
+            "framework": "pytorch", "weights": weights_path,
             "optimizer": "Adam", "initial_learning_rate": 1e-3, "batch_size": batch_size,
             "loss_weighting": loss_weighting,
             "max_epochs": epochs, "epochs_run": len(history.history.get("loss", [])),
@@ -522,10 +562,10 @@ def evaluate(dataset_path: str, model_path: str, batch_size: int = 256) -> dict:
     Only the three NMSE reports are replaced; the training record is kept. Used
     for weights trained before the fine-band reports existed.
     """
-    import tensorflow as tf
+    from factory6g.components.estimators.neural_estimator import load_neural_estimator
 
     reader = _DatasetReader(dataset_path)
-    net = tf.keras.models.load_model(model_path, compile=False)
+    net = load_neural_estimator(model_path, reader.num_ofdm_symbols, reader.fft_size)
     meta_path = model_path + ".metadata.json"
     metadata = {}
     if os.path.exists(meta_path):

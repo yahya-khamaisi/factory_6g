@@ -2,22 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import tensorflow as tf
+import torch
 
 
 @dataclass(frozen=True)
 class ResourceManagerFeedback:
-    h_hat: tf.Tensor
-    err_var: tf.Tensor
+    h_hat: torch.Tensor
+    err_var: torch.Tensor
 
 
 @dataclass(frozen=True)
 class BatchContext:
     batch_size: int
     ebno_db: float
-    noise_variance: tf.Tensor
-    h_freq: tf.Tensor
-    probe_noise: tf.Tensor
-    data_noise: tf.Tensor
-    source_bits: tf.Tensor
+    noise_variance: torch.Tensor
+    h_freq: torch.Tensor
+    probe_noise: torch.Tensor
+    data_noise: torch.Tensor
+    source_bits: torch.Tensor
     feedback: ResourceManagerFeedback | None

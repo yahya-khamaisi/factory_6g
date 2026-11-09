@@ -24,7 +24,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+import torch
+
+from factory6g.sim.rng import seed_all
 
 from factory6g.models.model import Model
 from factory6g.sim.config import load_config
@@ -59,7 +61,7 @@ def main() -> None:
             for est in estimators
         }
         context_model = models[estimators[0]]
-        tf.random.set_seed(seed)
+        seed_all(seed)
         contexts = {
             eb: [context_model.prepare_batch_context(batch_size, eb, include_feedback=False)
                  for _ in range(args.warmup + args.batches)]
@@ -101,8 +103,7 @@ def main() -> None:
         "ebno_db": ebno_points,
         "warmup_batches": args.warmup,
         "host": {"machine": platform.machine(), "cpu_count": os.cpu_count(),
-                 "tf_threads": [tf.config.threading.get_intra_op_parallelism_threads(),
-                                tf.config.threading.get_inter_op_parallelism_threads()]},
+                 "torch_threads": [torch.get_num_threads(), torch.get_num_interop_threads()]},
         "note": "Measured sequentially with no other workload; per-slot = per-batch time / batch size.",
         "results": results,
     }

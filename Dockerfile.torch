@@ -1,0 +1,21 @@
+# Sionna 2.x on PyTorch (Phase 4). Runs the ported simulation; the TensorFlow image
+# (Dockerfile, sionna 1.2.1) stays for the locked thesis runs.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# llvm + libatomic1: Dr.Jit CPU backend for Sionna RT on arm64.
+RUN apt-get update && apt-get install -y --no-install-recommends llvm libatomic1 libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV MPLBACKEND=Agg
+
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir "sionna==2.2.0" "matplotlib>=3.10" "scipy>=1.14" "pandas>=2.0" "pytest>=8" "tqdm" "psutil" "h5py>=3.10" "pyarrow>=15"
+
+COPY pyproject.toml .
+COPY src/ src/
+RUN pip install --no-cache-dir --no-deps -e .
+
+ENTRYPOINT ["python", "-m", "factory6g.cli.run"]
+CMD ["--config", "config/config.json"]

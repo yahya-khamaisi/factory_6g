@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import tensorflow as tf
+import torch
 
 from factory6g.models.resource_manager import ResourceDirectives
 from factory6g.sim.config import ConfigError, load_config
@@ -49,7 +49,7 @@ def test_batch_state_is_repeatable_and_only_blocks_body_worn_devices():
 
 def test_channel_hook_scales_the_right_terminal_and_ports():
     scen = _scenario({"device_classes": ["agv_control", "agv_control"], "events": [{"type": "bs_port_fault", "start": 0, "end": 0, "ports": [3]}, {"type": "ut_blockage", "start": 0, "end": 0, "ut": 0, "attenuation_db": 20.0}]})
-    h = tf.ones([1, 1, 4, 2, 1, 2, 3], dtype=tf.complex64)
+    h = torch.ones([1, 1, 4, 2, 1, 2, 3], dtype=torch.complex64)
     out = np.abs(scen.channel_hook(scen.batch_state(0))(h).numpy())
     assert out[0, 0, 3].max() == 0.0
     assert out[0, 0, 0, 0].max() == pytest.approx(0.1)

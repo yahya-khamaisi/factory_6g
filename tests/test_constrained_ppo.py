@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import torch
 import pytest
 
 from factory6g.models.resource_manager import create_resource_manager
@@ -46,7 +47,7 @@ def test_dual_update_per_operating_point_with_cap():
 
 
 def test_constrained_drl_routes_to_the_rl_manager(tmp_path):
-    build_actor_critic(4, 130).save(tmp_path / "policy.keras")
+    torch.save(build_actor_critic(4, 130).state_dict(), tmp_path / "policy.pt")
     (tmp_path / "metadata.json").write_text(json.dumps({"format": RL_CHECKPOINT_FORMAT}))
     mgr = create_resource_manager("constrained_drl", num_ut=4, num_active=2, cnn_model_path=None,
                                   drl_model_path=None, manager_kwargs={"model_path": str(tmp_path)})

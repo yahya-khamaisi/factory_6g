@@ -19,7 +19,8 @@ import json
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+
+from factory6g.sim.rng import seed_all
 
 from factory6g.models.model import Model
 from factory6g.models.resource_manager import MaxThroughputResourceManager, RoundRobinResourceManager
@@ -54,7 +55,7 @@ def main() -> None:
         rec: dict[str, object] = {}
 
         # 1. Effective-SNR spread of the terminals.
-        tf.random.set_seed(seed)
+        seed_all(seed)
         ls_model = Model(cfg, estimator_type="ls")
         chan = ls_model.get_channel()
         gains = []
@@ -69,7 +70,7 @@ def main() -> None:
         rec["mean_linear_gain"] = float(np.mean(10 ** (g / 10)))
 
         # 2. LS waterfall, all terminals active.
-        tf.random.set_seed(seed)
+        seed_all(seed)
         wf = {}
         for eb in [float(v) for v in args.ebno.split(",")]:
             e = n = 0
@@ -82,7 +83,7 @@ def main() -> None:
         rec["ls_ber_all_active"] = wf
 
         # 3. Genie-CSI scheduling: max-throughput vs round-robin on shared contexts.
-        tf.random.set_seed(seed)
+        seed_all(seed)
         genie = Model(cfg, perfect_csi=True)
         mt, rr = MaxThroughputResourceManager(num_active=2), RoundRobinResourceManager(num_active=2)
         stats = {"max_throughput": [0, 0, []], "round_robin": [0, 0, []]}

@@ -18,7 +18,12 @@ import json
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
+import torch
+
+torch.set_grad_enabled(False)
+
+from factory6g.rl.ppo import load_actor_critic
+from factory6g.sim.rng import seed_all
 
 from factory6g.rl.ppo import greedy_action
 from factory6g.rl.scheduler_env import SchedulerEnv
@@ -52,7 +57,7 @@ def main() -> None:
 
     out: dict[str, dict] = {}
     for name, (objective, path) in policies.items():
-        net = tf.keras.models.load_model(Path(path) / "policy.keras", compile=False)
+        net = load_actor_critic(path)
         out[name] = {"model_path": path, "results": {}}
         for channel in channels:
             for eb in ebno_points:
@@ -67,13 +72,13 @@ def main() -> None:
                     num_active=rm.num_active_users,
                     rng=np.random.default_rng(seed),
                 )
-                tf.random.set_seed(seed)
+                seed_all(seed)
                 jains, full_power, top_energy, ber_err, ber_bits = [], [], [], 0, 0
                 for _ in range(args.episodes):
                     obs, done = env.reset(), False
                     delivered = np.zeros(env.num_ut)
                     while not done:
-                        sched, power, _ = net(obs[None], training=False)
+                        sched, power, _ = net(obs[None])
                         selected, power_high = greedy_action(sched.numpy()[0], power.numpy()[0], env.num_active)
                         energy = obs[:, :-2].mean(axis=1)
                         top = set(np.argsort(-energy)[: env.num_active].tolist())
