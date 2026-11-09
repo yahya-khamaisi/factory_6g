@@ -252,39 +252,44 @@ docker run --rm -v "$PWD":/app -w /app --entrypoint python factory6g:latest scri
 
 ## Live Monitor
 
-`viewer monitor` follows every simulation and training run while it writes, in
-one page, with no export step:
+`viewer monitor` follows every simulation and training run while it writes,
+with no export step:
 
 ```bash
 docker compose up monitor                    # http://localhost:8766, watches results/ (hall from data/)
-# several worktrees or machines' result folders at once:
+# several worktrees' result folders at once:
 python -m factory6g.viewer monitor results ../factory_6g_phase4/results --data data --port 8766
 ```
 
-* **Factory hall** (top): the latest batch of any run, live, as a 2D plan and
-  a 3D view side by side (drag to turn and tilt; it rotates slowly until
-  paused). Both show the room and machines from the channel-bank manifest, the
-  ceiling base station, the terminal drop of the latest batch (filled: line of
-  sight, hollow: none), earlier drops faintly, and one link per scheduled
-  terminal, green when its packet decoded and red when it failed, wider at
-  higher power. Below them, one card per terminal: position, path, large-scale
-  gain, power, how often it has been scheduled and its block error rate so far.
-  Pick the run, method and Eb/N0 above the views.
-* **Simulations**: one card per traced run (runs with `simulation.trace` on),
-  with status (running, stopped, finished), the stack that produced it
-  (TensorFlow / Sionna 1.2.1 or PyTorch / Sionna 2.2, from `provenance.json`),
-  progress, seconds per batch and ETA (from `simulation.log`), and the BER per
-  Eb/N0 so far, redrawn as each batch lands. Filled markers have at least 30 bit
-  errors; hollow ones fewer; an arrow marks a point with no errors so far,
-  drawn at its 95 % upper bound (3 / bits).
-* **Detail** (click a card): BER so far, the running BER after every batch for
-  one Eb/N0 point (to see whether a point has settled), and the BER table.
-* **Across runs**: one method from every run that has it, coloured by stack, so
-  seeds and the TensorFlow / PyTorch equivalence check can be watched as they
-  run.
-* **Training**: PPO logs (`results/training_logs/*.log`): iteration progress
-  and ETA, reward and rollout-BER trends, latest rollout BLER per Eb/N0 and,
-  for the constrained policy, the Lagrange multipliers.
+It is a multi-page app with a sidebar (a top bar on phones); each page has
+its own address, so it can be bookmarked or shared:
+
+* **Overview** (`#/overview`): what is running, the next run to finish, bits
+  simulated, training jobs, a compact list of running simulations with a BER
+  thumbnail each, and the latest hall drop.
+* **Simulations** (`#/runs`): the running simulations as a list, one row per
+  run with its facts (start, time per batch, time left, Eb/N0 points still
+  open), progress bar, its BER-vs-Eb/N0 graph redrawn after every batch, and
+  the methods ranked by BER at the highest Eb/N0 where all of them still have
+  errors. Finished runs follow as tiles. Filter by status or text. Filled
+  markers have at least 30 bit errors, hollow ones fewer; an arrow marks a
+  point with no errors yet, at its 95 % upper bound (3 / bits).
+* **One run** (`#/run/<id>`): summary tiles, BER so far, the running BER after
+  every batch at a chosen Eb/N0 (to see whether a point has settled), and the
+  BER table with counts on hover.
+* **Factory hall** (`#/hall`): the latest batch of any run as a 2D plan and a
+  draggable, slowly rotating 3D view: room and machines from the channel-bank
+  manifest, the ceiling base station, the terminal drop (filled: line of sight,
+  hollow: none), earlier drops faintly, and one link per scheduled terminal,
+  green when its packet decoded and red when it failed, wider at higher power;
+  then one card per terminal with position, gain, power, how often it was
+  scheduled and its block error rate so far.
+* **Compare runs** (`#/compare`): one method from every run that has it,
+  coloured by stack, with a BER table per run, so seeds and the TensorFlow /
+  PyTorch equivalence check can be watched as they run.
+* **Training** (`#/training`): per PPO log, progress and time left, reward and
+  rollout-BER charts, the latest rollout BLER per Eb/N0 and, for the
+  constrained policy, the Lagrange multipliers (red where at the cap).
 
 The trace is appended one gzip member per batch, so the monitor reads only the
 members completed since its last poll (every 2 s) and pushes changes to the
