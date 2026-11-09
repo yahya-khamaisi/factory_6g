@@ -1,0 +1,137 @@
+{
+  "schema_version": "2.0",
+  "run_id": "20261109_153308",
+  "stage_order": [
+    "estimators"
+  ],
+  "stage_paths": {
+    "estimators": {
+      "dir": "results/phase4/20261109_153308_ls_dft_lmmse_adaptive_neural_rayleigh_qpsk_s/estimators",
+      "json": "results/phase4/20261109_153308_ls_dft_lmmse_adaptive_neural_rayleigh_qpsk_s/estimators/stage_results_v2.json",
+      "csv": "results/phase4/20261109_153308_ls_dft_lmmse_adaptive_neural_rayleigh_qpsk_s/estimators/stage_results_v2.csv"
+    }
+  },
+  "aggregate_means": {
+    "estimators": {
+      "ls": {
+        "ber": 0.03862897776594066,
+        "ber_upper_confidence": 0.03867449502807905,
+        "latency_ms": 2783.973896320735,
+        "throughput_bits_per_batch": 189013.23393939392,
+        "energy_joules_per_batch": 0.0002325310000000004,
+        "avg_power_w": 8.353069892827953e-05,
+        "runtime_sec": 400.3616184217307,
+        "bit_errors": 760621.1818181818,
+        "total_bits": 27167650.90909091,
+        "block_errors": 1693.090909090909,
+        "total_blocks": 17687.272727272728,
+        "num_batches": 138.1818181818182,
+        "latency_model_ms": 1.0791666666666677,
+        "tx_power_w": 0.7981049259875544,
+        "tx_energy_j_per_batch": 0.013780611722051755,
+        "per_ut_delivered_bits": 6601757.431818182,
+        "jain_fairness": 0.9999485353288207,
+        "nmse_db": -19.581590207068746,
+        "err_var_calibration": 1.0000882277029666,
+        "error_batches": 44.54545454545455
+      },
+      "dft": {
+        "ber": 0.028938524650804928,
+        "ber_upper_confidence": 0.028976677127521902,
+        "latency_ms": 2799.9946320473923,
+        "throughput_bits_per_batch": 190918.45454545456,
+        "energy_joules_per_batch": 0.0002325310000000004,
+        "avg_power_w": 8.305484448862497e-05,
+        "runtime_sec": 426.85349531145135,
+        "bit_errors": 570786.0909090909,
+        "total_bits": 28597527.272727273,
+        "block_errors": 1332.4545454545455,
+        "total_blocks": 18618.18181818182,
+        "num_batches": 145.45454545454547,
+        "latency_model_ms": 1.0791666666666673,
+        "tx_power_w": 0.7981049259875547,
+        "tx_energy_j_per_batch": 0.013780611722051757,
+        "per_ut_delivered_bits": 7006685.295454546,
+        "jain_fairness": 0.9999653475379109,
+        "nmse_db": -23.095773337510586,
+        "err_var_calibration": 0.35126688224041747,
+        "error_batches": 39.45454545454545
+      },
+      "lmmse": {
+        "ber": 0.023485391790216616,
+        "ber_upper_confidence": 0.023521932745813868,
+        "latency_ms": 2780.220156421866,
+        "throughput_bits_per_batch": 191990.58409090908,
+        "energy_joules_per_batch": 0.0002325310000000004,
+        "avg_power_w": 8.364397949695892e-05,
+        "runtime_sec": 404.92542619254493,
+        "bit_errors": 462708.1818181818,
+        "total_bits": 27167650.90909091,
+        "block_errors": 1154.090909090909,
+        "total_blocks": 17687.272727272728,
+        "num_batches": 138.1818181818182,
+        "latency_model_ms": 1.0791666666666677,
+        "tx_power_w": 0.7981049259875544,
+        "tx_energy_j_per_batch": 0.013780611722051755,
+        "per_ut_delivered_bits": 6676235.681818182,
+        "jain_fairness": 0.9999726801197478,
+        "nmse_db": -22.286159479955494,
+        "err_var_calibration": 0.7000023723716529,
+        "error_batches": 40.27272727272727
+      },
+      "adaptive": {
+        "ber": 0.023388262662020595,
+        "ber_upper_confidence": 0.023423942322908422,
+        "latency_ms": 2768.9481413869003,
+        "throughput_bits_per_batch": 192009.68045454548,
+        "energy_joules_per_batch": 0.0002325310000000004,
+        "avg_power_w": 8.398303726760289e-05,
+        "runtime_sec": 427.44061842518835,
+        "bit_errors": 461964.1818181818,
+        "total_bits": 28597527.272727273,
+        "block_errors": 1152.1818181818182,
+        "total_blocks": 18618.18181818182,
+        "num_batches": 145.45454545454547,
+        "latency_model_ms": 1.0791666666666673,
+        "tx_power_w": 0.7981049259875547,
+        "tx_energy_j_per_batch": 0.013780611722051757,
+        "per_ut_delivered_bits": 7033890.7727272725,
+        "jain_fairness": 0.9999731678086803,
+        "nmse_db": -23.771482486616218,
+        "err_var_calibration": 0.461689253208638,
+        "error_batches": 39.36363636363637
+      },
+      "neural": {
+        "ber": 0.019759241739908853,
+        "ber_upper_confidence": 0.01979001096559954,
+        "latency_ms": 2825.869144933774,
+        "throughput_bits_per_batch": 192723.175,
+        "energy_joules_per_batch": 0.00023253100000000042,
+        "avg_power_w": 8.229407200230876e-05,
+        "runtime_sec": 652.7372445072731,
+        "bit_errors": 391126.7272727273,
+        "total_bits": 30384872.727272727,
+        "block_errors": 1015.3636363636364,
+        "total_blocks": 19781.81818181818,
+        "num_batches": 154.54545454545453,
+        "latency_model_ms": 1.079166666666667,
+        "tx_power_w": 0.7981049259875548,
+        "tx_energy_j_per_batch": 0.01378061172205176,
+        "per_ut_delivered_bits": 7498436.5,
+        "jain_fairness": 0.9999804796495305,
+        "nmse_db": -26.139226424353172,
+        "err_var_calibration": 2.812455202125094,
+        "error_batches": 34.54545454545455
+      }
+    }
+  },
+  "runtime_totals_sec": {
+    "estimators": {
+      "ls": 4403.977802639038,
+      "dft": 4695.388448425965,
+      "lmmse": 4454.179688117994,
+      "adaptive": 4701.8468026770715,
+      "neural": 7180.109689580004
+    }
+  }
+}

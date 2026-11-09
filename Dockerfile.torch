@@ -5,7 +5,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # llvm + libatomic1: Dr.Jit CPU backend for Sionna RT on arm64.
-RUN apt-get update && apt-get install -y --no-install-recommends llvm libatomic1 libgl1 libglib2.0-0 \
+# gcc/g++: torch.compile's inductor backend (F6G_COMPILE_DECODER=1).
+RUN apt-get update && apt-get install -y --no-install-recommends llvm libatomic1 libgl1 libglib2.0-0 gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
 ENV MPLBACKEND=Agg

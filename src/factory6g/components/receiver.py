@@ -54,6 +54,8 @@ References:
     - 3GPP TS 38.211: Physical channels and modulation
 """
 
+import os
+
 import torch
 from sionna.phy.mimo import StreamManagement
 from sionna.phy.ofdm import (
@@ -191,7 +193,9 @@ class Receiver:
         # a 120-batch check), so bit-exact agreement with eager runs is not
         # guaranteed there.
         self._decode_graph = self._decoder
-    
+        if os.environ.get("F6G_COMPILE_DECODER") == "1":
+            self._decode_graph = torch.compile(self._decoder, dynamic=False)
+
     def estimate_channel(self, y: torch.Tensor, noise_var: torch.Tensor) -> tuple:
         """
         Estimate channel from received signal.

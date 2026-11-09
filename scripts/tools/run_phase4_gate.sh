@@ -15,4 +15,5 @@ else
   args+=(--estimators ls,dft,lmmse,adaptive,neural --stage estimators)
 fi
 docker run --rm --name "phase4_gate_${lane}" -v "$PWD":/app -v "$DATA_DIR":/app/data:ro -w /app \
-  -e PYTHONPATH=/app/src factory6g-torch:latest "${args[@]}"
+  -e PYTHONPATH=/app/src -e OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}" \
+  -e F6G_COMPILE_DECODER="${F6G_COMPILE_DECODER:-1}" factory6g-torch:latest "${args[@]}"
