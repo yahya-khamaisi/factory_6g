@@ -22,6 +22,7 @@ const S = {
   rowCache: new Map(),
 };
 const $ = (id) => document.getElementById(id);
+let ovHallKey = null; // run and batch the overview's hall preview shows
 
 // ---------- DOM helpers (no innerHTML with data) ----------
 function h(tag, attrs, ...kids) { const el = document.createElement(tag); setAttrs(el, attrs); append(el, kids); return el; }
@@ -236,11 +237,21 @@ function navigate() {
   }
   S.rowCache.clear();
   S.hall.key = null;
+  ovHallKey = null; // the overview's hall box is rebuilt, so fetch its scene again
   const page = PAGES[S.route.page];
   setHead({ title: page.title, sub: page.sub });
   $('page').replaceChildren();
   page.render(true);
   window.scrollTo(0, 0);
+}
+// Colours are read from CSS at draw time, so a theme change redraws the current page in place:
+// controls, scroll position and the overview's hall preview stay where they are.
+function redrawForTheme() {
+  S.rowCache.clear();
+  ovHallKey = null;
+  S.hall.key = null;
+  PAGES[S.route.page].render(false);
+  if (S.route.page === 'hall') drawHall();
 }
 function updateBadges() {
   const nr = runs().filter((r) => r.status === 'running').length;
@@ -285,7 +296,6 @@ function miniRow(run) {
     h('div', { class: 'mid' }, progressBar(run)),
     logChart(seriesOf(st), { width: 160, height: 52, xs: st.ebno_db, bare: true }));
 }
-let ovHallKey = null;
 async function overviewHall(run) {
   const box = $('ov-hall');
   if (!box) return;
@@ -334,8 +344,8 @@ function renderRuns(first) {
     h('div', { class: 'section-head' }, h('h2', {}, 'Running now'), h('p', {}, `${live.length} simulation${live.length === 1 ? '' : 's'} · curves redraw after every batch`)),
     live.length ? h('div', { class: 'run-list' }, live.map((r) => cached(`row:${r.id}`, rowKey(r), () => runRow(r)))) : h('p', { class: 'empty-state' }, q ? 'No running simulation matches.' : 'No simulation is running.'));
   secD.replaceChildren(
-    h('div', { class: 'section-head' }, h('h2', {}, 'Finished'), h('p', {}, `${done.length} in the last 24 h`)),
-    done.length ? h('div', { class: 'run-grid' }, done.map((r) => cached(`tile:${r.id}`, rowKey(r), () => runTile(r)))) : h('p', { class: 'empty-state' }, 'No finished runs in the window.'));
+    h('div', { class: 'section-head' }, h('h2', {}, 'Finished'), h('p', {}, `${done.length} run${done.length === 1 ? '' : 's'} in the watched window`)),
+    done.length ? h('div', { class: 'run-grid' }, done.map((r) => cached(`tile:${r.id}`, rowKey(r), () => runTile(r)))) : h('p', { class: 'empty-state' }, q ? 'No finished run matches.' : 'No finished runs in the window.'));
 }
 const rowKey = (r) => `${runVersion(r)}|${r.status}|${r.progress?.batch}|${Math.round(r.age_s / 60)}`;
 function cached(key, version, make) {
@@ -784,12 +794,14 @@ setInterval(updateConn, 1000);
 
 function wire() {
   window.addEventListener('hashchange', () => { if (S.snap) navigate(); });
+  // "Skip to content" moves focus without touching the hash, which the router owns.
+  document.querySelector('.skip').addEventListener('click', (e) => { e.preventDefault(); $('page').focus(); });
   $('theme-toggle').addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme !== 'dark';
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     $('theme-toggle').textContent = dark ? 'Light theme' : 'Dark theme';
     try { localStorage.setItem('f6g-theme', dark ? 'dark' : 'light'); } catch (_) { /* storage may be blocked */ }
-    if (S.snap) navigate();
+    if (S.snap) redrawForTheme();
   });
   try {
     const saved = localStorage.getItem('f6g-theme');

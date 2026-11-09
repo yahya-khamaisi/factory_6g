@@ -171,7 +171,9 @@ body { overflow-x: hidden; }
 @media (max-width: 900px) {
   .shell { flex-direction: column; }
   .side { width: auto; height: auto; position: sticky; top: 0; z-index: 10; flex-direction: row; align-items: center; padding: var(--s2) var(--s4); gap: var(--s3); border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .side .brand small, .side-foot .conn #conn-text, .side-nav span { display: none; }
+  .side .brand small { display: none; }
+  /* icon-only on phones: labels stay available to screen readers */
+  .side-nav span, .side-foot .conn #conn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .side-nav { flex-direction: row; }
   .side-nav a { height: 36px; padding: 0 var(--s2); gap: var(--s1); }
   .side-foot { margin: 0 0 0 auto; flex-direction: row; align-items: center; }
