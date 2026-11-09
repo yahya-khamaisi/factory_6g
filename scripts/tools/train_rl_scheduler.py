@@ -30,7 +30,9 @@ from factory6g.sim.stages.common import resolve_kwargs
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", default="config/config.json")
-    parser.add_argument("--objective", choices=["throughput", "reliability"], required=True)
+    parser.add_argument("--objective", choices=["throughput", "reliability", "constrained"], required=True)
+    parser.add_argument("--bler-target", type=float, default=0.01, help="constrained: BLER the policy must stay under.")
+    parser.add_argument("--dual-step", type=float, default=2.0, help="constrained: dual-ascent step for the multipliers.")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--iterations", type=int, default=150)
     parser.add_argument("--steps-per-iteration", type=int, default=256)
@@ -72,6 +74,8 @@ def main() -> None:
         # Episodes sample the operating points of the evaluation sweep.
         ebno_grid=tuple(float(v) for v in config.monte_carlo.ebno_db_range),
         rng=np.random.default_rng(seed),
+        bler_target=args.bler_target,
+        dual_step=args.dual_step,
     )
     cfg = PPOConfig(iterations=args.iterations, steps_per_iteration=args.steps_per_iteration, seed=seed)
     result = train_ppo(env, cfg, args.output_dir, max_new_iterations=args.segment_iterations)
