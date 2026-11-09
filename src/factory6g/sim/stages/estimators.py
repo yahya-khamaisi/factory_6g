@@ -6,6 +6,7 @@ from typing import Any
 
 from factory6g.models.model import Model
 from factory6g.sim.config import Factory6GConfig
+from factory6g.sim.industry import make_scenario
 from factory6g.sim.trace import make_trace_recorder, trace_meta
 
 from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
@@ -91,11 +92,12 @@ def run_estimator_stage(
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
             )
 
+    scenario = make_scenario(config)
     trace = make_trace_recorder(
         config.simulation.trace,
         checkpoint_dir,
         stage="estimators",
-        meta=trace_meta(config, methods=methods),
+        meta=trace_meta(config, methods=methods, scenario=scenario),
         resume_from_batch=start_batch_index if start_batch_index > 0 else None,
     )
 
@@ -124,12 +126,15 @@ def run_estimator_stage(
             if all(point_state[method][ebno_index]["done"] for method in methods):
                 continue
             print(f"  snr={ebno_db:+.1f}dB ", end="", flush=True)
+            industry_state = scenario.batch_state(batch_index) if scenario else None
+            shared_context_model.channel_hook = scenario.channel_hook(industry_state) if scenario else None
             context = shared_context_model.prepare_batch_context(
                 batch_size=config.monte_carlo.batch_size,
                 ebno_db=ebno_db,
                 include_feedback=False,
             )
-            trace.record_context(batch_index, ebno_db, getattr(shared_context_model, "last_large_scale", None))
+            trace.record_context(batch_index, ebno_db, getattr(shared_context_model, "last_large_scale", None),
+                                 {"industry": industry_state} if industry_state else None)
             for method, model in models.items():
                 stats = point_state[method][ebno_index]
                 if stats["done"]:

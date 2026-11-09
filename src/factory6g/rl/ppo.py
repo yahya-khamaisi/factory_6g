@@ -162,6 +162,8 @@ def train_ppo(
         history = json.loads((output_dir / "history.json").read_text(encoding="utf-8"))
         ep_returns = state.get("recent_episode_returns", [])
         elapsed_before = float(state.get("elapsed_s", 0.0))
+        if "lagrange" in state and hasattr(env, "lagrange"):
+            env.lagrange = {float(k): float(v) for k, v in state["lagrange"].items()}
     obs = env.reset()
     num_ut, state_dim = obs.shape
     net = build_actor_critic(num_ut, state_dim, cfg.hidden_dim)
@@ -230,12 +232,17 @@ def train_ppo(
                 grads, _ = tf.clip_by_global_norm(grads, 0.5)
                 opt.apply_gradients(zip(grads, net.trainable_variables))
 
+        constraint = {}
+        if getattr(env, "objective", None) == "constrained":
+            observed = env.dual_update()
+            constraint = {"rollout_bler_by_ebno": observed, "lagrange": {str(k): v for k, v in env.lagrange.items()}}
         rec = {
             "iteration": it + 1,
             "mean_step_reward": float(rew.mean()),
             "mean_episode_return": float(np.mean(ep_returns[-20:])) if ep_returns else float("nan"),
             "rollout_ber": float(errors / max(bits, 1)),
             "elapsed_s": time.perf_counter() - t0,
+            **constraint,
         }
         history.append(rec)
         if (it + 1) % log_every == 0:
@@ -249,6 +256,7 @@ def train_ppo(
         "episode_rng": env.rng.bit_generator.state,
         "recent_episode_returns": ep_returns[-20:],
         "elapsed_s": time.perf_counter() - t0,
+        **({"lagrange": {str(k): v for k, v in env.lagrange.items()}} if hasattr(env, "lagrange") else {}),
     }), encoding="utf-8")
     return {"history": history, "completed": end}
 
@@ -272,6 +280,9 @@ def save_rl_checkpoint(output_dir: Path, net, cfg: PPOConfig, env, history: list
             "power_levels": [0.5, 1.0],
             "estimator": "adaptive",
         },
+        **({"constraint": {"bler_target": env.bler_target, "dual_step": env.dual_step, "lagrange_cap": env.lagrange_cap,
+                           "lagrange": {str(k): v for k, v in env.lagrange.items()}}}
+           if getattr(env, "objective", None) == "constrained" else {}),
         "environment_steps": len(history) * cfg.steps_per_iteration,
     }
     (output_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

@@ -10,6 +10,12 @@ on the same PHY chain it is evaluated on.
 An episode is a sequence of batches at one operating point and one channel
 model. A served-rate history carried across the steps of an episode drives the
 fairness debt in the state, so the decision problem is sequential.
+
+The ``constrained`` objective maximises the delivered-bit fraction subject to
+E[BLER | Eb/N0] <= ``bler_target`` with one Lagrange multiplier per operating
+point, raised by dual ascent after every PPO iteration (``dual_update``). One
+multiplier per point keeps an infeasible low-SNR point from inflating the
+penalty everywhere; the cap bounds the reward where the target cannot be met.
 """
 
 from __future__ import annotations
@@ -60,6 +66,8 @@ class StepOutcome:
     total_bits: int
     delivered: np.ndarray
     tx_power_fraction: float
+    block_errors: int = 0
+    total_blocks: int = 0
 
 
 class SchedulerEnv:
@@ -89,8 +97,11 @@ class SchedulerEnv:
         episode_length: int = 16,
         num_active: int = 2,
         rng: np.random.Generator | None = None,
+        bler_target: float = 0.01,
+        dual_step: float = 2.0,
+        lagrange_cap: float = 10.0,
     ) -> None:
-        if objective not in {"throughput", "reliability"}:
+        if objective not in {"throughput", "reliability", "constrained"}:
             raise ValueError(f"Unknown objective '{objective}'.")
         self.objective = objective
         self.channel_models = channel_models
@@ -113,6 +124,11 @@ class SchedulerEnv:
         self._ebno_db = ebno_grid[0]
         self._avg_rates = np.full(self.num_ut, RATE_FLOOR)
         self._context = None
+        self.bler_target = float(bler_target)
+        self.dual_step = float(dual_step)
+        self.lagrange_cap = float(lagrange_cap)
+        self.lagrange = {float(e): 0.0 for e in ebno_grid}
+        self._blocks_by_ebno: dict[float, list[int]] = {}
 
     # ------------------------------------------------------------------ API
     def reset(self) -> np.ndarray:
@@ -147,7 +163,12 @@ class SchedulerEnv:
             total_bits=int(stats["total_bits"]),
             delivered=delivered,
             tx_power_fraction=tx_fraction,
+            block_errors=int(stats["block_errors"]),
+            total_blocks=int(stats["total_blocks"]),
         )
+        acc = self._blocks_by_ebno.setdefault(float(self._ebno_db), [0, 0])
+        acc[0] += outcome.block_errors
+        acc[1] += outcome.total_blocks
         outcome.reward = self.reward(outcome, fairness_debt(self._avg_rates))
         # Served-rate history from the activation mask alone (1 if served), so
         # the scheduler can maintain the identical history at evaluation, where
@@ -170,6 +191,10 @@ class SchedulerEnv:
             minus 0.1 times the fraction of maximum transmit power used.
         """
         per_ut_capacity = float(self.batch_size * self._info_bits)
+        if self.objective == "constrained":
+            delivered = float(np.sum(outcome.delivered)) / (self.num_active * per_ut_capacity)
+            bler = outcome.block_errors / max(outcome.total_blocks, 1)
+            return float(delivered - self.lagrange[float(self._ebno_db)] * bler)
         if self.objective == "throughput":
             served = outcome.delivered > 0
             weights = np.where(served, debt_before, 0.0)
@@ -178,6 +203,19 @@ class SchedulerEnv:
         ber = min(max(ber, 1e-6), 1e-1)
         reliability = (-np.log10(ber) - 1.0) / 5.0
         return float(reliability - 0.1 * outcome.tx_power_fraction)
+
+    def dual_update(self) -> dict[str, float]:
+        """Dual ascent on the per-point multipliers from the last rollout's BLER; returns that BLER."""
+        observed = {}
+        for ebno, (errors, blocks) in self._blocks_by_ebno.items():
+            if blocks == 0:
+                continue
+            bler = errors / blocks
+            observed[str(ebno)] = bler
+            lam = self.lagrange[ebno] + self.dual_step * (bler - self.bler_target)
+            self.lagrange[ebno] = float(min(self.lagrange_cap, max(0.0, lam)))
+        self._blocks_by_ebno = {}
+        return observed
 
     # ------------------------------------------------------------ internals
     def _observe(self) -> np.ndarray:

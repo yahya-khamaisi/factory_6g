@@ -69,6 +69,8 @@ class Model:
             channel_estimator=self._build_channel_estimator(),
         )
 
+    channel_hook = None  # optional callable applied to each prepared channel response
+
     @property
     def last_large_scale(self) -> dict | None:
         """Terminal positions, LOS flags and gains of the latest prepared batch."""
@@ -124,6 +126,9 @@ class Model:
     ) -> BatchContext:
         self._channel.set_topology(batch_size)
         h_freq = self._channel.sample_frequency_response(batch_size)
+        if self.channel_hook is not None:
+            # Scenario layer (factory6g.sim.industry): blockage, port faults, interference.
+            h_freq = self.channel_hook(h_freq)
 
         noise_variance = tf.cast(
             ebnodb2no(

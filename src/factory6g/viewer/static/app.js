@@ -6,7 +6,7 @@
 const UT_COLORS = ['#0072B2', '#D55E00', '#009E73', '#CC79A7', '#E69F00', '#56B4E9', '#6b6b6b', '#882255'];
 const METHOD_COLORS = ['#233369', '#cc6677', '#117733', '#aa4499', '#3f8fbf', '#999933', '#882255', '#44aa99'];
 const MIN_RESOLVED_BIT_ERRORS = 30; // matches factory6g.sim.stages.common
-const VIEWS = { floor: 'Floor', timeline: 'Timeline', compare: 'Compare', run: 'Run and checks', hall: '3D hall', link: 'Link' };
+const VIEWS = { floor: 'Floor', timeline: 'Timeline', compare: 'Compare', run: 'Run and checks', hall: '3D hall', link: 'Link', ops: 'Operations' };
 
 const S = { data: null, stage: 0, method: null, compare: null, eb: 0, batch: 0, ut: 0, view: 'floor', playing: false, speed: 1, timer: null };
 const $ = (id) => document.getElementById(id);
@@ -530,6 +530,67 @@ function renderLink() {
     table);
 }
 
+// ---------- Operations (Industry 5.0) ----------
+function renderOps() {
+  const st = stage();
+  const ind = st.meta.industry;
+  if (!ind || !st.service) {
+    return card('No Industry 5.0 scenario in this stage', null,
+      h('p', { text: 'Add an "industry" section to the config (device classes, body blockage, events) and run with "trace": true. config/industry50/ has an example.' }));
+  }
+  const eb = Number(curEb());
+  const verdictClass = { met: 'ok', missed: 'bad', inconclusive: 'muted' };
+  const classRows = st.service.classes.filter((r) => r.method === S.method && r.ebno_db === eb).map((r) => h('tr', {},
+    h('td', { text: r.label }), h('td', { text: `${r.latency_intervals}` }), h('td', { text: String(r.target) }),
+    h('td', { text: `${(100 * r.reliability).toFixed(3)} %` }), h('td', { text: `${(100 * r.reliability_lo).toFixed(3)} – ${(100 * r.reliability_hi).toFixed(3)} %` }),
+    h('td', {}, h('span', { class: `chip ${verdictClass[r.verdict]}`, text: { met: '✓ met', missed: '✕ missed', inconclusive: '≈ inconclusive' }[r.verdict] })),
+    h('td', { text: `${r.packets} of ${r.packets_needed}` }), h('td', { text: String(r.survival_violations) })));
+  const classes = card('Device classes', `${S.method} · ${eb} dB · whole run`,
+    h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Class', 'Budget (intervals)', 'Target', 'Reliability in budget', '95 %', 'Verdict', 'Packets / needed', 'Survival violations'].map((t) => h('th', { text: t })))), h('tbody', {}, classRows))),
+    h('p', { class: 'note', text: 'Met needs the lower 95 % bound above the target. A run too short to confirm a target shows how many clean packets it would need (rule of three).' }));
+
+  // delivery timeline with event bands
+  const nB = numBatches();
+  const W = 1000, H = 200, ml = 46, mr = 10, mt = 10, mb = 26;
+  const X = (b) => ml + b / Math.max(1, nB - 1) * (W - ml - mr), Y = (v) => mt + (1 - v) * (H - mt - mb);
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 'auto' }, role: 'img', 'aria-label': 'Share of terminals whose packet was delivered, per batch, with disruption periods shaded' });
+  const evColors = { bs_port_fault: '#c0262d', ut_blockage: '#D55E00', interference_burst: '#8a3ea6' };
+  ind.events.forEach((e) => {
+    svg.append(s('rect', { x: X(e.start), y: mt, width: Math.max(2, X(e.end) - X(e.start)), height: H - mt - mb, fill: evColors[e.type] || '#999', opacity: 0.12 }));
+    svg.append(s('text', { x: X(e.start) + 3, y: mt + 12, text: e.type.replace(/_/g, ' '), style: { fill: evColors[e.type] || '#999' } }));
+  });
+  [0, 0.5, 1].forEach((v) => { svg.append(s('line', { x1: ml, x2: W - mr, y1: Y(v), y2: Y(v), stroke: cssVar('--soft') })); svg.append(s('text', { x: ml - 6, y: Y(v) + 3, 'text-anchor': 'end', text: `${v * 100}%` })); });
+  methods().forEach((m) => {
+    const pts = [];
+    for (let b = 0; b < nB; b++) {
+      const r = rec(m, eb, b);
+      if (!r) continue;
+      const ok = r.active.reduce((a, on, u) => a + (on && (r.block_errors[u] ?? 0) === 0 ? 1 : 0), 0);
+      pts.push(`${X(b)},${Y(ok / r.active.length)}`);
+    }
+    svg.append(s('polyline', { points: pts.join(' '), fill: 'none', stroke: methodColor(m), 'stroke-width': m === S.method ? 2.2 : 1, opacity: m === S.method ? 1 : 0.5 }));
+  });
+  svg.append(s('line', { x1: X(S.batch), x2: X(S.batch), y1: mt, y2: H - mb, stroke: cssVar('--ink'), 'stroke-dasharray': '3 3' }));
+  const timeline = card('Packets delivered per interval', `${eb} dB · selected method bold`, svg,
+    h('div', { class: 'legend' }, methods().map((m) => h('span', {}, h('span', { class: 'swatch', style: { background: methodColor(m) } }), m))));
+
+  const evRows = st.service.events.filter((r) => r.method === S.method && r.ebno_db === eb).map((r) => h('tr', {},
+    h('td', { text: r.event.replace(/_/g, ' ') }), h('td', { text: `${r.start + 1}–${r.end + 1}` }),
+    h('td', { text: `${(100 * r.delivery_before).toFixed(1)} %` }), h('td', { text: `${(100 * r.delivery_during).toFixed(1)} %` }),
+    h('td', { text: r.recovery_intervals_after_end === null ? 'not within the run' : `${r.recovery_intervals_after_end} intervals` })));
+  const events = card('Disruptions and recovery', S.method, h('table', {}, h('thead', {}, h('tr', {}, ['Event', 'Batches', 'Delivered before', 'During', 'Recovery after the end'].map((t) => h('th', { text: t })))), h('tbody', {}, evRows)));
+
+  const energy = st.service.service.filter((r) => r.ebno_db === eb);
+  const maxE = Math.max(...energy.map((r) => r.energy_nj_per_bit).filter(Number.isFinite), 1);
+  const eRows = energy.map((r) => h('tr', { class: r.method === S.method ? 'selected' : '' },
+    h('td', {}, h('span', { class: 'swatch', style: { background: methodColor(r.method), marginRight: '6px' } }), r.method),
+    h('td', {}, h('span', { class: 'bar', style: { width: '160px' } }, h('span', { style: { left: 0, width: `${100 * r.energy_nj_per_bit / maxE}%`, background: methodColor(r.method) } })), ` ${r.energy_nj_per_bit.toFixed(1)} nJ`),
+    h('td', { text: `${(100 * r.packet_delivery).toFixed(1)} %` }), h('td', { text: `${(100 * r.availability_s1).toFixed(2)} %` })));
+  const energyCard = card('Energy and availability', `${eb} dB · uplink energy per delivered bit`, h('table', {}, h('thead', {}, h('tr', {}, ['Method', 'Energy per bit', 'Packets delivered', 'Availability'].map((t) => h('th', { text: t })))), h('tbody', {}, eRows)));
+
+  return h('div', { class: 'col' }, classes, timeline, h('div', { class: 'row' }, h('div', { style: { flex: '1 1 460px' } }, events), h('div', { style: { flex: '1 1 460px' } }, energyCard)));
+}
+
 // ---------- shell ----------
 function selectStage(i) {
   S.stage = i;
@@ -561,7 +622,7 @@ function render() {
   syncControls();
   $('view-title').textContent = VIEWS[S.view];
   document.querySelectorAll('.nav a[data-view]').forEach((a) => a.setAttribute('aria-current', a.dataset.view === S.view ? 'page' : 'false'));
-  const fn = { floor: renderFloor, timeline: renderTimeline, compare: renderCompare, run: renderRun, hall: renderHall, link: renderLink }[S.view];
+  const fn = { floor: renderFloor, timeline: renderTimeline, compare: renderCompare, run: renderRun, hall: renderHall, link: renderLink, ops: renderOps }[S.view];
   $('view').replaceChildren(fn());
 }
 function setPlaying(on) {
@@ -605,7 +666,7 @@ function wire() {
     else if (e.key === 'ArrowLeft') { S.batch = Math.max(0, S.batch - 1); render(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); S.eb = Math.min(ebnos().length - 1, S.eb + 1); render(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); S.eb = Math.max(0, S.eb - 1); render(); }
-    else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) location.hash = `#/${['floor', 'timeline', 'compare', 'run', 'hall', 'link'][Number(e.key) - 1]}`;
+    else if (['1', '2', '3', '4', '5', '6', '7'].includes(e.key)) location.hash = `#/${['floor', 'timeline', 'compare', 'run', 'hall', 'link', 'ops'][Number(e.key) - 1]}`;
   });
 }
 async function main() {

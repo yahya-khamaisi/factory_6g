@@ -53,7 +53,15 @@ def _stage_entry(trace_path: Path, run_dir: Path) -> dict[str, Any]:
     }
     methods = [{k: v for k, v in r.items() if k != "type"} for r in trace["methods"]]
     meta = trace["header"]["meta"]
+    service = None
+    try:  # needs SciPy (present in both images); the viewer still works without it
+        from factory6g.analysis.service import class_service_rows, event_recovery_rows, service_rows
+
+        service = {"service": service_rows(trace), "classes": class_service_rows(trace), "events": event_recovery_rows(trace)}
+    except ImportError:
+        pass
     return {
+        "service": service,
         "id": rel,
         "stage": trace["header"]["stage"],
         "meta": meta,

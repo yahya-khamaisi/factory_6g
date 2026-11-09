@@ -703,6 +703,8 @@ class Factory6GConfig:
     transceiver: TransceiverConfig
     factory_scenario: FactoryScenarioConfig
     ray_tracing: RayTracingConfig
+    # Optional Industry 5.0 scenario layer (factory6g.sim.industry); None keeps the thesis scenario.
+    industry: Any = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Factory6GConfig":
@@ -716,8 +718,9 @@ class Factory6GConfig:
             "factory_scenario",
             "ray_tracing",
             "jidd_scma",   # optional: Dr. Athirah's JIDD-SCMA simulation config
+            "industry",    # optional: Industry 5.0 scenario layer
         }
-        required = allowed - {"jidd_scma"}
+        required = allowed - {"jidd_scma", "industry"}
         _validate_keys("root", raw, allowed)
         _require_keys("root", raw, required)
         return cls(
@@ -733,6 +736,7 @@ class Factory6GConfig:
                 _ensure_dict(raw["factory_scenario"], "factory_scenario")
             ),
             ray_tracing=RayTracingConfig.from_dict(_ensure_dict(raw["ray_tracing"], "ray_tracing")),
+            industry=_industry_from(raw.get("industry")),
         )
 
     @property
@@ -743,6 +747,17 @@ class Factory6GConfig:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _industry_from(raw: Any):
+    if raw is None:
+        return None
+    from factory6g.sim.industry import IndustryConfig
+
+    try:
+        return IndustryConfig.from_dict(_ensure_dict(raw, "industry"))
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
 
 
 def load_config(config_path: str | Path = "config/config.json") -> Factory6GConfig:

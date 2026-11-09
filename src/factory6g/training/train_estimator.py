@@ -55,6 +55,7 @@ def generate_dataset(
     channel_types: Sequence[str] = ("tr38901",),
     seed: int | None = None,
     batch_size: int | None = None,
+    rt_bank_split: str = "train",
 ) -> None:
     """Run simulation batches and save (h_ls, h_residual, ebno_db) to .npz.
 
@@ -75,6 +76,8 @@ def generate_dataset(
                        Typical: ["rayleigh", "rician", "tr38901"].
         seed: Seed already applied by the caller, recorded in the manifest so a
               dataset can be traced back to the run that produced it.
+        rt_bank_split: bank split for ray-traced samples. Training data uses
+              "train"; "eval" builds a held-out test set at unseen positions.
     """
     import tensorflow as tf  # noqa: F401 — ensure TF is initialised
     from factory6g.models.model import Model
@@ -113,8 +116,9 @@ def generate_dataset(
         if ch_type not in model_cache:
             cfg = copy.deepcopy(config)
             cfg["channel_model_type"] = ch_type
-            # Training never sees evaluation positions of the ray-traced bank.
-            cfg["rt_bank_split"] = "train"
+            # Training data never sees evaluation positions of the ray-traced bank;
+            # rt_bank_split="eval" is only for building held-out test sets.
+            cfg["rt_bank_split"] = rt_bank_split
             model_cache[ch_type] = Model(cfg, estimator_type="ls")
             logger.info("Created LS model for channel_model_type='%s'.", ch_type)
         return model_cache[ch_type]
@@ -212,6 +216,7 @@ def generate_dataset(
         # be reported against its training distribution.
         "channel_types": channel_types,
         "channel_batch_counts": channel_batch_counts,
+        "rt_bank_split": rt_bank_split,
         "num_generation_batches": int(num_batches),
         "batch_size": batch_size,
         "ebno_db_range": [float(ebno_db_range[0]), float(ebno_db_range[1])],

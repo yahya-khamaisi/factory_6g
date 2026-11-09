@@ -19,6 +19,7 @@ from typing import Any
 from factory6g.models.model import Model
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.sim.config import Factory6GConfig
+from factory6g.sim.industry import make_scenario
 from factory6g.sim.trace import make_trace_recorder, trace_meta
 
 from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
@@ -111,11 +112,12 @@ def run_coupled_stage(
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
             )
 
+    scenario = make_scenario(config)
     trace = make_trace_recorder(
         config.simulation.trace,
         checkpoint_dir,
         stage="coupled",
-        meta=trace_meta(config, methods=methods),
+        meta=trace_meta(config, methods=methods, scenario=scenario),
         resume_from_batch=start_batch_index if start_batch_index > 0 else None,
     )
 
@@ -140,12 +142,15 @@ def run_coupled_stage(
                 continue
             print(f"  snr={ebno_db:+.1f}dB ", end="", flush=True)
             # One draw per batch and point, shared by every estimator and scheduler (P1).
+            industry_state = scenario.batch_state(batch_index) if scenario else None
+            context_model.channel_hook = scenario.channel_hook(industry_state) if scenario else None
             base_context = context_model.prepare_batch_context(
                 batch_size=config.monte_carlo.batch_size,
                 ebno_db=ebno_db,
                 include_feedback=False,
             )
-            trace.record_context(batch_index, ebno_db, getattr(context_model, "last_large_scale", None))
+            trace.record_context(batch_index, ebno_db, getattr(context_model, "last_large_scale", None),
+                                 {"industry": industry_state} if industry_state else None)
             for est, model in models.items():
                 open_methods = [
                     coupled_method_key(est, sch)
@@ -169,6 +174,8 @@ def run_coupled_stage(
                         ebno_db,
                         feedback=context.feedback if manager.needs_channel_feedback else None,
                     )
+                    if scenario is not None:
+                        directives = scenario.cap_power(directives)
                     result = model.run_batch(context, directives=directives, include_details=True)
                     # The feedback estimate is shared by the open schedulers of this estimator.
                     elapsed = time.perf_counter() - method_start + fb_elapsed / len(open_methods)

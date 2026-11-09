@@ -7,6 +7,7 @@ from typing import Any
 from factory6g.models.model import Model
 from factory6g.models.resource_manager import create_resource_manager
 from factory6g.sim.config import Factory6GConfig
+from factory6g.sim.industry import make_scenario
 from factory6g.sim.trace import make_trace_recorder, trace_meta
 
 from .checkpoint import delete_checkpoint, load_checkpoint, reseed_for_resume, save_checkpoint
@@ -95,11 +96,12 @@ def run_resource_manager_stage(
                 f"{start_batch_index + 1}/{config.monte_carlo.max_batches}"
             )
 
+    scenario = make_scenario(config)
     trace = make_trace_recorder(
         config.simulation.trace,
         checkpoint_dir,
         stage="resource_managers",
-        meta=trace_meta(config, methods=methods),
+        meta=trace_meta(config, methods=methods, scenario=scenario),
         resume_from_batch=start_batch_index if start_batch_index > 0 else None,
     )
 
@@ -128,12 +130,15 @@ def run_resource_manager_stage(
             if all(point_state[method][ebno_index]["done"] for method in methods):
                 continue
             print(f"  snr={ebno_db:+.1f}dB ", end="", flush=True)
+            industry_state = scenario.batch_state(batch_index) if scenario else None
+            shared_model.channel_hook = scenario.channel_hook(industry_state) if scenario else None
             context = shared_model.prepare_batch_context(
                 batch_size=config.monte_carlo.batch_size,
                 ebno_db=ebno_db,
                 include_feedback=True,
             )
-            trace.record_context(batch_index, ebno_db, getattr(shared_model, "last_large_scale", None))
+            trace.record_context(batch_index, ebno_db, getattr(shared_model, "last_large_scale", None),
+                                 {"industry": industry_state} if industry_state else None)
             for method, manager in managers.items():
                 stats = point_state[method][ebno_index]
                 if stats["done"]:
@@ -143,6 +148,8 @@ def run_resource_manager_stage(
                 method_start = time.perf_counter()
                 feedback = context.feedback if manager.needs_channel_feedback else None
                 directives = manager.get_runtime_directives(system_config, ebno_db, feedback=feedback)
+                if scenario is not None:
+                    directives = scenario.cap_power(directives)
                 result = shared_model.run_batch(context, directives=directives, include_details=True)
                 elapsed = time.perf_counter() - method_start
                 runtime_totals_sec[method] += elapsed

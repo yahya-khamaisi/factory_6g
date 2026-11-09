@@ -30,6 +30,7 @@ from typing import Any, Iterable, Sequence
 
 import numpy as np
 
+from factory6g.analysis.service import class_service_rows, event_recovery_rows, service_rows
 from factory6g.analysis.stats import MIN_RESOLVED_BIT_ERRORS, batch_series, mean_ci
 from factory6g.sim.trace import TRACE_FILENAME, read_trace, unpack_block_flags
 
@@ -196,7 +197,8 @@ def stage_report(trace_path: Path, *, baseline: str | None) -> dict[str, Any]:
                 r["p_holm"] = adj
                 r["verdict"] = _verdict(r)
     return {"stage": stage, "seed": int(meta.get("seed", -1)), "methods": methods, "baseline": base,
-            "ebno_db_range": [float(e) for e in meta["ebno_db_range"]], "rows": rows}
+            "ebno_db_range": [float(e) for e in meta["ebno_db_range"]], "rows": rows,
+            "service": service_rows(trace), "classes": class_service_rows(trace), "events": event_recovery_rows(trace)}
 
 
 def _verdict(row: dict[str, Any]) -> str:
@@ -295,6 +297,14 @@ def write_report(report: dict[str, Any], out_dir: Path) -> list[Path]:
                 for r in rep["rows"]:
                     writer.writerow({**r, "seed": rep["seed"]})
         written.append(csv_path)
+        service = [dict(r, seed=rep["seed"]) for rep in st["per_seed"] for r in rep.get("service", [])]
+        if service:
+            svc_path = out_dir / f"service_{name}.csv"
+            with svc_path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=sorted({k for r in service for k in r}))
+                writer.writeheader()
+                writer.writerows(service)
+            written.append(svc_path)
         md += [f"## Stage `{name}`", "", f"Seeds: {', '.join(map(str, st['seeds']))}. Baseline: `{st['per_seed'][0]['baseline']}`.", ""]
         first = st["per_seed"][0]
         tested = [r for r in first["rows"] if "verdict" in r]
@@ -308,6 +318,46 @@ def write_report(report: dict[str, Any], out_dir: Path) -> list[Path]:
                     continue
                 c = lambda v: sum(1 for r in mr if r["verdict"] == v)  # noqa: E731
                 md.append(f"| {m} | {c('fewer block errors')} | {c('more block errors')} | {c('no clear difference')} | {c('not testable')} |")
+            md.append("")
+        for key, title in (("classes", "industry_classes"), ("events", "industry_events")):
+            extra = [dict(r, seed=rep["seed"]) for rep in st["per_seed"] for r in rep.get(key, [])]
+            if extra:
+                path_x = out_dir / f"{title}_{name}.csv"
+                with path_x.open("w", newline="", encoding="utf-8") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=sorted({k for r in extra for k in r}))
+                    writer.writeheader()
+                    writer.writerows(extra)
+                written.append(path_x)
+        classes_first = st["per_seed"][0].get("classes", [])
+        if classes_first:
+            md += [f"### Device classes, seed {first['seed']}", "",
+                   "Reliability within the class latency budget against the class target. *met*: the lower 95 % bound clears the target; "
+                   "*missed*: the upper bound is below it; *inconclusive*: the run has too few packets to decide (see *packets needed*).", "",
+                   "| Method | Eb/N0 | Class | Budget | Target | Reliability | 95 % | Verdict | Packets | Packets needed | Survival violations |",
+                   "|:--|--:|:--|--:|--:|--:|:--|:--|--:|--:|--:|"]
+            for r in classes_first:
+                md.append(f"| {r['method']} | {r['ebno_db']:g} | {r['label']} | {r['latency_intervals']} | {r['target']} | {_fmt(r['reliability'])} | "
+                          f"{_fmt(r['reliability_lo'])} – {_fmt(r['reliability_hi'])} | {r['verdict']} | {r['packets']} | {r['packets_needed']} | {int(r['survival_violations'])} |")
+            md.append("")
+        events_first = st["per_seed"][0].get("events", [])
+        if events_first:
+            md += [f"### Disruptions, seed {first['seed']}", "", "Delivery is the share of terminals whose packet got through in an interval; recovery counts intervals after the event ends until a 3-interval mean is back at 95 % of the pre-event level.", "",
+                   "| Method | Eb/N0 | Event | Batches | Delivery before | Delivery during | Recovery (intervals) |", "|:--|--:|:--|:--|--:|--:|--:|"]
+            for r in events_first:
+                rec = "not within the run" if r["recovery_intervals_after_end"] is None else r["recovery_intervals_after_end"]
+                md.append(f"| {r['method']} | {r['ebno_db']:g} | {r['event']} | {r['start']}–{r['end']} | {_fmt(r['delivery_before'])} | {_fmt(r['delivery_during'])} | {rec} |")
+            md.append("")
+        first_service = st["per_seed"][0].get("service", [])
+        if first_service:
+            md += [f"### Service metrics, seed {first['seed']}", "",
+                   "Each batch is one scheduling interval with one packet per terminal; latency budgets count intervals. "
+                   "Availability uses a survival time of one interval.", "",
+                   "| Method | Eb/N0 | Delivered | Within 1 | Within 2 | Within 4 | Availability | Survival violations | Energy (nJ/bit) | BLER p99 | Batches over 1 % BLER |",
+                   "|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
+            for r in first_service:
+                md.append(f"| {r['method']} | {r['ebno_db']:g} | {_fmt(r['packet_delivery'])} | {_fmt(r['reliability_within_1'])} | {_fmt(r['reliability_within_2'])} | "
+                          f"{_fmt(r['reliability_within_4'])} | {_fmt(r['availability_s1'])} | {int(r['survival_violations_s1'])} | {_fmt(r['energy_nj_per_bit'])} | "
+                          f"{_fmt(r['bler_p99'])} | {_fmt(r['bler_violation_rate'])} |")
             md.append("")
         if st["across_seeds"]:
             seed_path = out_dir / f"reliability_{name}_seeds.csv"

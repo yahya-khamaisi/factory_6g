@@ -115,8 +115,10 @@ class TraceRecorder:
     def _add(self, record: dict[str, Any]) -> None:
         self._pending.append(json.dumps(record, separators=(",", ":")))
 
-    def record_context(self, batch_index: int, ebno_db: float, large_scale: dict[str, Any] | None) -> None:
+    def record_context(self, batch_index: int, ebno_db: float, large_scale: dict[str, Any] | None, extra: dict[str, Any] | None = None) -> None:
         record: dict[str, Any] = {"type": "context", "batch": int(batch_index), "ebno_db": float(ebno_db)}
+        if extra:
+            record.update(extra)
         if large_scale:
             record["positions"] = [_round_list(p, 3) for p in np.asarray(large_scale["positions"])]
             record["los"] = [bool(v) for v in np.asarray(large_scale["los"]).reshape(-1)]
@@ -183,10 +185,12 @@ def make_trace_recorder(
     return TraceRecorder(stage_dir, stage=stage, meta=meta, resume_from_batch=resume_from_batch)
 
 
-def trace_meta(config: Any, *, methods: Sequence[str]) -> dict[str, Any]:
+def trace_meta(config: Any, *, methods: Sequence[str], scenario: Any = None) -> dict[str, Any]:
     """Run facts the viewer needs to draw the hall and label the trace."""
     system = config.system_runtime_config
+    extra = {"industry": scenario.meta()} if scenario is not None else {}
     return {
+        **extra,
         "methods": list(methods),
         "ebno_db_range": [float(v) for v in config.monte_carlo.ebno_db_range],
         "num_ut": int(system.get("num_ut", 0)),

@@ -279,6 +279,42 @@ standard deviation, the interquartile mean, and the probability of
 improvement over the baseline. `tests/test_analytic_anchors.py` checks the PHY
 against closed-form AWGN and Rayleigh combining results.
 
+## Industry 5.0 Scenario, Service Metrics And Constrained PPO
+
+An optional `industry` config section turns on the Industry 5.0 layer
+(`src/factory6g/sim/industry.py`). Without it nothing changes. It provides:
+
+- Device classes per terminal, each with a latency budget, reliability target
+  and survival time.
+- Body blockage of body-worn devices, drawn from a separate seeded generator.
+- Scripted disruptions: `bs_port_fault`, `ut_blockage` and
+  `interference_burst`.
+- Power caps for body-worn classes.
+
+`config/industry50/config_industry50.json` is an example, and
+`scripts/tools/run_industry50.sh` runs it.
+
+The reliability report adds service metrics from the trace, treating each
+batch as one scheduling interval:
+
+- Reliability within a latency budget.
+- Survival-time violations and availability.
+- Uplink energy per delivered bit.
+- Tail BLER.
+
+For Industry 5.0 runs it also gives per-class verdicts (met, missed, or
+inconclusive when the run is too short) and recovery after each disruption.
+The viewer shows these in its Operations view.
+
+`constrained_drl` is a PPO scheduler trained to maximise delivered bits subject
+to E[BLER | Eb/N0] ≤ 1 %, with one Lagrange multiplier per Eb/N0 point
+(`scripts/tools/train_constrained_ppo.sh`).
+
+`scripts/tools/finetune_site_specific.py` pre-trains the neural estimator on
+statistical channels, fine-tunes it on ray-traced samples, and scores it at
+held-out hall positions. `python -m factory6g.analysis.bank_validation`
+compares the channel bank with the TR 38.901 InF statistics.
+
 ## Dataset, Training, And Reports
 
 Dataset and training workflows are documented in `data/README.md`. Keep those

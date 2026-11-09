@@ -559,6 +559,9 @@ def create_resource_manager(
     ):
         kwargs.setdefault("model_path", "models/reliability_drl_resource_manager_policy")
         return _learned_manager(num_active, kwargs)
+    if "constrained_drl" in name_lower or "constrained-drl" in name_lower:
+        kwargs.setdefault("model_path", "models/constrained_drl_ppo_policy")
+        return _learned_manager(num_active, kwargs)
     if "static" in name_lower:
         return StaticResourceManager(active_ut_mask=[1] * num_ut, per_ut_power=[1.0] * num_ut)
     if "round" in name_lower:
