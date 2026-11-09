@@ -6,7 +6,7 @@
 const UT_COLORS = ['#0072B2', '#D55E00', '#009E73', '#CC79A7', '#E69F00', '#56B4E9', '#6b6b6b', '#882255'];
 const METHOD_COLORS = ['#233369', '#cc6677', '#117733', '#aa4499', '#3f8fbf', '#999933', '#882255', '#44aa99'];
 const MIN_RESOLVED_BIT_ERRORS = 30; // matches factory6g.sim.stages.common
-const VIEWS = { floor: 'Floor', timeline: 'Timeline', compare: 'Compare', run: 'Run and checks' };
+const VIEWS = { floor: 'Floor', timeline: 'Timeline', compare: 'Compare', run: 'Run and checks', hall: '3D hall', link: 'Link' };
 
 const S = { data: null, stage: 0, method: null, compare: null, eb: 0, batch: 0, ut: 0, view: 'floor', playing: false, speed: 1, timer: null };
 const $ = (id) => document.getElementById(id);
@@ -194,6 +194,16 @@ function hallSvg() {
       svg.append(s('line', { x1: px(bs[0]), y1: py(bs[1]), x2: px(p[0]), y2: py(p[1]), stroke: utColor(i), 'stroke-width': w, 'stroke-linecap': 'round' }));
     });
   }
+  const sc = sceneHere();
+  if (sc && c) {
+    const link = sc.links[S.ut];
+    const p0 = c.positions[S.ut];
+    (link?.paths || []).filter((pt) => pt.vertices.length).slice(0, 4).forEach((pt) => {
+      const pts = [[p0[0], p0[1]], ...pt.vertices.map((v) => [v[0], v[1]]), [bs[0], bs[1]]];
+      svg.append(s('polyline', { points: pts.map(([x, y]) => `${px(x)},${py(y)}`).join(' '), fill: 'none', stroke: '#E69F00', 'stroke-width': 1.6, 'stroke-dasharray': '5 3' }));
+      pt.vertices.forEach((v) => svg.append(s('circle', { cx: px(v[0]), cy: py(v[1]), r: 3, fill: '#E69F00' })));
+    });
+  }
   svg.append(s('polygon', { points: `${px(bs[0])},${py(bs[1]) - 14} ${px(bs[0]) + 13},${py(bs[1]) + 9} ${px(bs[0]) - 13},${py(bs[1]) + 9}`, fill: cssVar('--ink'), stroke: cssVar('--panel'), 'stroke-width': 2 }));
   svg.append(s('text', { x: px(bs[0]), y: py(bs[1]) + 24, 'text-anchor': 'middle', class: 'ink', text: 'BS' }));
   if (c) {
@@ -233,6 +243,7 @@ function renderFloor() {
     h('span', {}, h('span', { class: 'swatch', style: { background: cssVar('--ink') } }), 'LOS'),
     h('span', {}, h('span', { class: 'swatch', style: { border: `2px solid ${cssVar('--ink')}` } }), 'NLOS'),
     h('span', {}, 'faded = not scheduled · link width = power'),
+    sceneHere() ? h('span', {}, h('span', { style: { width: '18px', borderTop: '2px dashed #E69F00', display: 'inline-block' } }), `traced reflections of UT${S.ut} (Sionna RT)`) : null,
     h('span', { text: rm ? `map: ${rm.source}, path gain at ${rm.height_m} m, ${Number(svg.dataset.rmLo).toFixed(0)} … ${Number(svg.dataset.rmHi).toFixed(0)} dB` : 'no radio map exported (export with --radio-map)' }));
 
   const tiles = h('div', { class: 'tiles' },
@@ -428,6 +439,97 @@ function renderRun() {
     card('Evidence checks', null, h('ul', { style: { listStyle: 'none', padding: 0, margin: 0 } }, checks)));
 }
 
+// ---------- 3D hall and Link (Sionna RT scene of one batch) ----------
+function sceneHere() {
+  const sc = S.data.scene;
+  return sc && sc.stage === stage().stage && sc.batch === S.batch && Number(sc.ebno_db) === Number(curEb()) ? sc : null;
+}
+function noScene() {
+  return card('No traced scene in this export', null,
+    h('p', { text: 'Export with --scene to trace the paths of one batch and render the hall:' }),
+    h('pre', { style: { background: 'var(--soft)', padding: '8px', borderRadius: '6px', overflowX: 'auto' }, text: 'docker compose run --rm viewer export results/<run> --scene' }));
+}
+function goToScene() {
+  const sc = S.data.scene;
+  const i = S.data.stages.findIndex((st) => st.stage === sc.stage);
+  if (i >= 0 && i !== S.stage) selectStage(i);
+  S.batch = sc.batch;
+  S.eb = Math.max(0, ebnos().indexOf(Number(sc.ebno_db)));
+  render();
+}
+function sceneNote() {
+  const sc = S.data.scene;
+  const here = sceneHere();
+  return h('div', { class: 'row', style: { alignItems: 'center' } },
+    h('span', { class: `chip ${here ? 'ok' : 'warn'}`, text: here ? '✓ showing the traced batch' : '! traced batch differs from the selected batch' }),
+    h('span', { class: 'note', style: { margin: 0 }, text: `Traced for batch ${sc.batch + 1} at ${sc.ebno_db} dB (${sc.stage}), depth ${sc.max_depth}, LOS + specular like the channel bank.` }),
+    here ? null : h('button', { type: 'button', class: 'ghost', onclick: goToScene, text: 'Go to that batch' }));
+}
+function renderHall() {
+  const sc = S.data.scene;
+  if (!sc) return noScene();
+  const imgs = sc.renders.map((r) => card(r.label, 'Sionna RT render_to_file',
+    h('img', { src: r.file, alt: `${r.label}: hall with radio map, base station, terminals and traced paths`, style: { width: '100%', height: 'auto', borderRadius: '8px', display: 'block' } })));
+  return h('div', { class: 'col' }, sceneNote(),
+    h('div', { class: 'row' }, imgs.map((c) => h('div', { style: { flex: '1 1 480px', minWidth: 0 } }, c))),
+    h('p', { class: 'note', text: 'The stills show line-of-sight and first-order reflections only, so the scene stays readable. The Link view lists every traced path. Red marks the base station, the floor carries the path-gain map at terminal height.' }));
+}
+function renderLink() {
+  const sc = S.data.scene;
+  if (!sc) return noScene();
+  const nUt = sc.links.length;
+  const i = Math.min(S.ut, nUt - 1);
+  const link = sc.links[i];
+  const r = rec(S.method, Number(sc.ebno_db), sc.batch);
+  const picker = h('div', { class: 'seg', role: 'group', 'aria-label': 'Terminal' },
+    sc.links.map((l, j) => h('button', { type: 'button', 'aria-pressed': String(j === i), onclick: () => { S.ut = j; render(); } }, h('span', { class: 'swatch', style: { background: utColor(j), marginRight: '5px' } }), `UT${j}`)));
+  const tiles = h('div', { class: 'tiles' },
+    tile('Distance to BS', `${link.distance_m} m`, link.los ? 'line of sight' : 'no line of sight'),
+    tile('Rician K-factor', link.k_factor_db === null ? '–' : `${link.k_factor_db.toFixed(1)} dB`, 'LOS power over the rest'),
+    tile('RMS delay spread', `${link.rms_delay_spread_ns.toFixed(1)} ns`, 'cyclic prefix ≈ 5.2 µs, so no ISI'),
+    tile('Traced paths', String(link.num_paths), `depth ${sc.max_depth}`),
+    tile(`${S.method} in this batch`, r ? (r.active[i] ? 'scheduled' : 'not scheduled') : '–', r && r.active[i] ? `${r.block_errors[i]} of ${r.blocks[i]} codewords in error` : ''));
+
+  const rows = link.paths.map((pt, j) => h('tr', {},
+    h('td', { text: String(j + 1) }), h('td', { text: pt.type }), h('td', { text: `${pt.delay_ns.toFixed(1)} ns` }),
+    h('td', { text: `${pt.power_db.toFixed(1)} dB` }), h('td', { text: pt.vertices.map((v) => `(${v[0].toFixed(1)}, ${v[1].toFixed(1)}, ${v[2].toFixed(1)})`).join(' → ') || '–' })));
+  const table = card('Strongest paths', 'power relative to the strongest path',
+    h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['#', 'Type', 'Excess delay', 'Power', 'Interaction points (m)'].map((t) => h('th', { text: t })))), h('tbody', {}, rows))));
+
+  // power delay profile
+  const W = 560, H = 230, ml = 46, mr = 10, mt = 10, mb = 30;
+  const maxD = Math.max(10, ...link.paths.map((p) => p.delay_ns)) * 1.08;
+  const minP = Math.min(-30, ...link.paths.map((p) => p.power_db)) - 3;
+  const X = (d) => ml + d / maxD * (W - ml - mr), Y = (p) => mt + (-p) / (-minP) * (H - mt - mb);
+  const pdp = s('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 'auto' }, role: 'img', 'aria-label': `Power delay profile of UT${i}` });
+  for (let p = 0; p >= minP; p -= 10) { pdp.append(s('line', { x1: ml, x2: W - mr, y1: Y(p), y2: Y(p), stroke: cssVar('--soft') })); pdp.append(s('text', { x: ml - 6, y: Y(p) + 3, 'text-anchor': 'end', text: `${p}` })); }
+  for (let d = 0; d <= maxD; d += maxD > 40 ? 10 : 5) pdp.append(s('text', { x: X(d), y: H - 14, 'text-anchor': 'middle', text: `${d}` }));
+  pdp.append(s('text', { x: (W + ml) / 2, y: H - 2, 'text-anchor': 'middle', text: 'excess delay (ns) · power (dB)' }));
+  link.paths.forEach((p) => {
+    const col = p.type === 'LOS' ? cssVar('--ink') : '#E69F00';
+    pdp.append(s('line', { x1: X(p.delay_ns), x2: X(p.delay_ns), y1: Y(minP), y2: Y(p.power_db), stroke: col, 'stroke-width': 2.5 }));
+    pdp.append(s('circle', { cx: X(p.delay_ns), cy: Y(p.power_db), r: 3.5, fill: col }));
+  });
+
+  // |H(f)| per port
+  const cfr = s('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 'auto' }, role: 'img', 'aria-label': `Channel magnitude across subcarriers for the 8 base-station ports, UT${i}` });
+  const all = link.cfr_db.flat();
+  const lo = Math.floor(Math.min(...all) / 5) * 5, hi = Math.ceil(Math.max(...all) / 5) * 5;
+  const n = link.cfr_db[0].length;
+  const XC = (k) => ml + k / (n - 1) * (W - ml - mr), YC = (v) => mt + (hi - v) / Math.max(1, hi - lo) * (H - mt - mb);
+  for (let v = lo; v <= hi; v += 5) { cfr.append(s('line', { x1: ml, x2: W - mr, y1: YC(v), y2: YC(v), stroke: cssVar('--soft') })); cfr.append(s('text', { x: ml - 6, y: YC(v) + 3, 'text-anchor': 'end', text: `${v}` })); }
+  cfr.append(s('text', { x: (W + ml) / 2, y: H - 2, 'text-anchor': 'middle', text: 'subcarrier · |H| (dB)' }));
+  link.cfr_db.forEach((port, k) => cfr.append(s('polyline', { points: port.map((v, j) => `${XC(j)},${YC(v)}`).join(' '), fill: 'none', stroke: METHOD_COLORS[k % METHOD_COLORS.length], 'stroke-width': 1.5 })));
+  const spread = link.cfr_db.map((port) => Math.max(...port) - Math.min(...port));
+
+  return h('div', { class: 'col' }, sceneNote(), h('div', { class: 'row', style: { alignItems: 'center' } }, picker), tiles,
+    h('div', { class: 'row' },
+      h('div', { style: { flex: '1 1 460px', minWidth: 0 } }, card('Power delay profile', `UT${i} · strongest ${link.paths.length} paths`, pdp)),
+      h('div', { style: { flex: '1 1 460px', minWidth: 0 } }, card('|H(f)| per base-station port', 'from the traced paths',
+        cfr, h('p', { class: 'note', text: `Variation across the band is at most ${Math.max(...spread).toFixed(1)} dB per port, so fading is close to flat in frequency; the ports differ by more, which is where the diversity comes from.` })))),
+    table);
+}
+
 // ---------- shell ----------
 function selectStage(i) {
   S.stage = i;
@@ -459,7 +561,7 @@ function render() {
   syncControls();
   $('view-title').textContent = VIEWS[S.view];
   document.querySelectorAll('.nav a[data-view]').forEach((a) => a.setAttribute('aria-current', a.dataset.view === S.view ? 'page' : 'false'));
-  const fn = { floor: renderFloor, timeline: renderTimeline, compare: renderCompare, run: renderRun }[S.view];
+  const fn = { floor: renderFloor, timeline: renderTimeline, compare: renderCompare, run: renderRun, hall: renderHall, link: renderLink }[S.view];
   $('view').replaceChildren(fn());
 }
 function setPlaying(on) {
@@ -503,7 +605,7 @@ function wire() {
     else if (e.key === 'ArrowLeft') { S.batch = Math.max(0, S.batch - 1); render(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); S.eb = Math.min(ebnos().length - 1, S.eb + 1); render(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); S.eb = Math.max(0, S.eb - 1); render(); }
-    else if (['1', '2', '3', '4'].includes(e.key)) location.hash = `#/${['floor', 'timeline', 'compare', 'run'][Number(e.key) - 1]}`;
+    else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) location.hash = `#/${['floor', 'timeline', 'compare', 'run', 'hall', 'link'][Number(e.key) - 1]}`;
   });
 }
 async function main() {

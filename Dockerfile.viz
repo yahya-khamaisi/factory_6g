@@ -15,8 +15,9 @@ ENV MPLBACKEND=Agg
 
 RUN pip install --no-cache-dir \
         "sionna-rt==2.2.0" \
-        "numpy>=1.26,<2.0" \
-        "matplotlib>=3.10"
+        "numpy>=1.26" \
+        "matplotlib>=3.10" \
+        "rerun-sdk==0.42.0"
 
 COPY pyproject.toml .
 COPY src/ src/

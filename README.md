@@ -210,15 +210,45 @@ docker compose run --rm --service-ports viewer serve results/<run>/viewer
 ```
 
 Open http://localhost:8765. `--radio-map` traces a Sionna RT path-gain map of
-the hall at terminal height (a few seconds on CPU for the 15 m hall). The
-viewer has four views:
+the hall at terminal height (a few seconds on CPU for the 15 m hall).
+`--scene` also traces every path of one batch's terminals and renders two
+stills of the hall (about 35 s on CPU); it uses the channel bank's settings
+(depth 5, LOS and specular reflection only). The viewer has six views:
 
-- **Floor:** the hall, terminals and scheduled links for one batch.
+- **Floor:** the hall, terminals and scheduled links for one batch, plus the
+  selected terminal's traced reflections on the traced batch.
 - **Timeline:** who was scheduled in each batch, and how BER converges.
 - **Compare:** BER with batch-level intervals, and the BLER difference paired
   against a baseline method.
 - **Run and checks:** whether the trace sums to the stage results, and how
   much evidence the run has.
+- **3D hall:** the Sionna RT renders with the radio map and paths.
+- **Link:** strongest paths, power delay profile, K-factor, delay spread and
+  |H(f)| per base-station port for each terminal.
+
+The same image draws the thesis figure pack and a Rerun recording:
+
+```bash
+docker compose run --rm viewer figures results/<run>
+```
+
+```bash
+docker compose run --rm viewer record results/<run>
+```
+
+`figures` writes PNG and PDF files plus `figure_pack_summary.csv` to
+`results/<run>/figures/`: the floor with the radio map, traced path gain
+against distance with the InF-SL curves, BER with batch-level intervals,
+the CDF of delivered bits per scheduled terminal, and fairness against
+reliability. `record` writes `results/<run>/recording.rrd`; open it with
+`rerun` from the `rerun-sdk` package to scrub batches in 3D.
+
+To see where a batch's time goes, profile the batch path in the simulation
+image:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app --entrypoint python factory6g:latest scripts/tools/profile_batch_path.py --batches 10
+```
 
 ## Dataset, Training, And Reports
 

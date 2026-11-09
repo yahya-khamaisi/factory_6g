@@ -70,6 +70,7 @@ def export_run(
     *,
     repo_root: Path | None = None,
     radio_map: dict[str, Any] | None = None,
+    scene: dict[str, Any] | None = None,
 ) -> Path:
     run_dir = Path(run_dir)
     out_dir = Path(out_dir)
@@ -87,6 +88,7 @@ def export_run(
         "exported_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
         "hall": hall,
         "radio_map": radio_map,
+        "scene": scene,
         "stages": stages,
     }
     out_dir.mkdir(parents=True, exist_ok=True)

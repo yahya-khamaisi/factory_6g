@@ -184,6 +184,8 @@ def trace_meta(config: Any, *, methods: Sequence[str]) -> dict[str, Any]:
         "rt_channel_bank": str(system.get("rt_channel_bank", "data/rt_channel_bank.npz")),
         "rt_bank_split": str(system.get("rt_bank_split", "eval")),
         "num_active_users": int(getattr(config.resource_managers, "num_active_users", 0)),
+        "fft_size": int(system.get("fft_size", 128)),
+        "subcarrier_spacing": float(system.get("subcarrier_spacing", 30e3)),
     }
 
 
