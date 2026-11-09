@@ -250,6 +250,37 @@ image:
 docker run --rm -v "$PWD":/app -w /app --entrypoint python factory6g:latest scripts/tools/profile_batch_path.py --batches 10
 ```
 
+## Live Monitor
+
+`viewer monitor` follows every simulation and training run while it writes, in
+one page, with no export step:
+
+```bash
+docker compose up monitor                    # http://localhost:8766, watches results/
+# several worktrees or machines' result folders at once:
+python -m factory6g.viewer monitor results ../factory_6g_phase4/results --port 8766
+```
+
+* **Simulations**: one card per traced run (runs with `simulation.trace` on),
+  with status (running, stopped, finished), the stack that produced it
+  (TensorFlow / Sionna 1.2.1 or PyTorch / Sionna 2.2, from `provenance.json`),
+  progress, seconds per batch and ETA (from `simulation.log`), and the BER per
+  Eb/N0 so far, redrawn as each batch lands. Filled markers have at least 30 bit
+  errors; hollow ones fewer; an arrow marks a point with no errors so far,
+  drawn at its 95 % upper bound (3 / bits).
+* **Detail** (click a card): BER so far, the running BER after every batch for
+  one Eb/N0 point (to see whether a point has settled), and the BER table.
+* **Across runs**: one method from every run that has it, coloured by stack, so
+  seeds and the TensorFlow / PyTorch equivalence check can be watched as they
+  run.
+* **Training**: PPO logs (`results/training_logs/*.log`): iteration progress
+  and ETA, reward and rollout-BER trends, latest rollout BLER per Eb/N0 and,
+  for the constrained policy, the Lagrange multipliers.
+
+The trace is appended one gzip member per batch, so the monitor reads only the
+members completed since its last poll (every 2 s) and pushes changes to the
+page over Server-Sent Events. It opens run folders read-only.
+
 ## Reliability Report And Provenance
 
 Every run writes `provenance.json` next to `simulation.log`: the config hash,

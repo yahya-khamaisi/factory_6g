@@ -3,6 +3,7 @@
     python -m factory6g.viewer export results/<run>            # writes results/<run>/viewer/
     python -m factory6g.viewer export results/<run> --radio-map
     python -m factory6g.viewer serve results/<run>/viewer --port 8765
+    python -m factory6g.viewer monitor results [more roots ...] --port 8766   # live, every run
 """
 
 from __future__ import annotations
@@ -102,6 +103,90 @@ def _serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _monitor(args: argparse.Namespace) -> int:
+    """Serve the live page; a background thread polls every root and the page receives updates as SSE."""
+    import json
+    import threading
+    import time
+    from urllib.parse import parse_qs, urlparse
+
+    from factory6g.viewer.live import RunWatcher
+
+    watcher = RunWatcher([Path(r) for r in args.roots], since_hours=args.since_hours,
+                         training_iterations=args.training_iterations)
+    watcher.poll()
+    stop = threading.Event()
+
+    def _loop() -> None:
+        while not stop.is_set():
+            try:
+                watcher.poll()
+            except Exception as exc:  # keep the monitor up while a run rewrites its files
+                print(f"poll failed: {exc!r}", file=sys.stderr, flush=True)
+            stop.wait(args.interval)
+
+    threading.Thread(target=_loop, daemon=True).start()
+    static = Path(__file__).with_name("static")
+
+    class Handler(_NoCacheHandler):
+        def log_message(self, fmt: str, *a) -> None:  # quiet: the stream would flood the log
+            return
+
+        def _json(self, payload, status: int = 200) -> None:
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802
+            url = urlparse(self.path)
+            if url.path in ("/", "/index.html"):
+                self.path = "/live.html"
+                return super().do_GET()
+            if url.path == "/api/runs":
+                return self._json(watcher.snapshot())
+            if url.path == "/api/convergence":
+                q = parse_qs(url.query)
+                try:
+                    return self._json(watcher.convergence(q["run"][0], q["stage"][0], float(q["eb"][0])))
+                except (KeyError, ValueError, IndexError):
+                    return self._json({"error": "unknown run, stage or Eb/N0"}, 404)
+            if url.path == "/api/stream":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Connection", "keep-alive")
+                self.end_headers()
+                sent = -1
+                try:
+                    while True:
+                        snap = watcher.snapshot()
+                        if snap["version"] != sent:
+                            sent = snap["version"]
+                            self.wfile.write(f"data: {json.dumps(snap)}\n\n".encode("utf-8"))
+                        else:  # heartbeat: tells the page the monitor is still polling
+                            self.wfile.write(f"event: ping\ndata: {json.dumps({'polled_at': snap.get('polled_at')})}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                        time.sleep(1.0)
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+            return super().do_GET()
+
+    handler = functools.partial(Handler, directory=str(static))
+    with http.server.ThreadingHTTPServer((args.host, args.port), handler) as server:
+        server.daemon_threads = True
+        roots = ", ".join(str(r) for r in args.roots)
+        print(f"Live monitor on http://localhost:{args.port}  watching {roots}  (Ctrl+C to stop)", flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            stop.set()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m factory6g.viewer", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -130,6 +215,14 @@ def main(argv: list[str] | None = None) -> int:
     srv.add_argument("--host", default="0.0.0.0")
     srv.add_argument("--port", type=int, default=8765)
     srv.set_defaults(func=_serve)
+    mon = sub.add_parser("monitor", help="Live page that follows every run and training log under the given roots.")
+    mon.add_argument("roots", nargs="+", help="Results folders to watch (e.g. results, ../other_worktree/results).")
+    mon.add_argument("--host", default="0.0.0.0")
+    mon.add_argument("--port", type=int, default=8766)
+    mon.add_argument("--interval", type=float, default=2.0, help="Seconds between polls of the run folders.")
+    mon.add_argument("--since-hours", type=float, default=24.0, help="Also list finished runs written within this many hours.")
+    mon.add_argument("--training-iterations", type=int, default=150, help="Planned PPO iterations, for training progress.")
+    mon.set_defaults(func=_monitor)
     args = parser.parse_args(argv)
     return int(args.func(args))
 

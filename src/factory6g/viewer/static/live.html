@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory6G live monitor</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div class="live-app">
+  <header class="live-top">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="var(--brand)"></rect><path d="M7 18V9l6 5 6-5v9" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+      <span><strong>Factory6G</strong><small>Live monitor</small></span>
+    </div>
+    <div class="live-conn" id="conn" role="status" aria-live="polite"><span class="pulse"></span><span id="conn-text">connecting…</span></div>
+    <div class="live-counts" id="counts"></div>
+    <div class="seg" role="group" aria-label="Filter runs" id="filter">
+      <button type="button" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" data-filter="running" aria-pressed="false">Running</button>
+      <button type="button" data-filter="finished" aria-pressed="false">Finished</button>
+    </div>
+    <button type="button" id="theme-toggle" class="ghost">Dark theme</button>
+  </header>
+
+  <main class="live-main">
+    <section aria-labelledby="h-sims">
+      <h1 id="h-sims" class="sec">Simulations <small>BER per Eb/N0 so far; curves move as batches arrive</small></h1>
+      <div id="runs" class="run-grid"></div>
+    </section>
+
+    <section id="detail" class="card detail" hidden aria-live="polite"></section>
+
+    <section aria-labelledby="h-overlay" class="card">
+      <h2 id="h-overlay">Across runs <small>one method, every run that has it: seeds and stacks side by side</small></h2>
+      <div class="ctx-row overlay-ctl">
+        <label>Stage <select id="ov-stage"></select></label>
+        <label>Method <select id="ov-method"></select></label>
+        <span class="legend" id="ov-legend"></span>
+      </div>
+      <div id="overlay"></div>
+    </section>
+
+    <section aria-labelledby="h-train">
+      <h1 id="h-train" class="sec">Training <small>PPO logs, one point per iteration</small></h1>
+      <div id="training" class="run-grid"></div>
+    </section>
+  </main>
+</div>
+<script src="live.js"></script>
+</body>
+</html>

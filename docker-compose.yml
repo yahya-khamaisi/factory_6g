@@ -59,6 +59,16 @@ services:
     ports:
       - "8765:8765"
 
+  monitor:             # Live monitor: follows every run and training log under results/ while they write
+    image: factory6g-viz:latest
+    volumes:
+      - ./results:/app/results:ro    # read-only: the monitor never writes into a run
+      - ./src:/app/src:ro
+    entrypoint: ["python", "-m", "factory6g.viewer"]
+    command: ["monitor", "results", "--port", "8766"]
+    ports:
+      - "8766:8766"
+
   train-estimator:     # Train the NeuralChannelEstimator inside Docker
     build: .
     image: factory6g:latest
