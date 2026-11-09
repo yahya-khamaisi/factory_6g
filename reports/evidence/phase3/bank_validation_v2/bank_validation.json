@@ -1,0 +1,66 @@
+{
+  "bank": "data/rt_channel_bank_v2.npz",
+  "volume_to_surface_m": 1.5,
+  "splits": {
+    "train": {
+      "los_fraction": 0.9937744140625,
+      "los": {
+        "count": 8141,
+        "ds_median_ns": 6.487707614898682,
+        "ds_lg_mean": -8.22940176825241,
+        "ds_lg_std": 0.15942345528340202,
+        "inf_ds_median_ns": 23.67423038400107,
+        "inf_ds_lg_mean": -7.6257241303992105,
+        "inf_ds_lg_std": 0.15,
+        "ple": 5.16709877852558,
+        "inf_ple": 2.15,
+        "k_median_db": 7.6187825202941895,
+        "k_mean_db": 7.874577716143019,
+        "k_std_db": 1.8653507124309878,
+        "inf_k_mean_db": 7.0,
+        "inf_k_std_db": 8.0
+      },
+      "nlos": {
+        "count": 51,
+        "ds_median_ns": 11.368317604064941,
+        "ds_lg_mean": -7.969274554348552,
+        "ds_lg_std": 0.06893120435793076,
+        "inf_ds_median_ns": 27.957010217297864,
+        "inf_ds_lg_mean": -7.553509274827517,
+        "inf_ds_lg_std": 0.19,
+        "ple": 2.1962713865121963,
+        "inf_ple": 2.55
+      }
+    },
+    "eval": {
+      "los_fraction": 0.95947265625,
+      "los": {
+        "count": 3930,
+        "ds_median_ns": 6.456849813461304,
+        "ds_lg_mean": -8.233022298950177,
+        "ds_lg_std": 0.1584850715165661,
+        "inf_ds_median_ns": 23.67423038400107,
+        "inf_ds_lg_mean": -7.6257241303992105,
+        "inf_ds_lg_std": 0.15,
+        "ple": 5.193810062184175,
+        "inf_ple": 2.15,
+        "k_median_db": 7.581096172332764,
+        "k_mean_db": 7.782033277892581,
+        "k_std_db": 1.7329139294838503,
+        "inf_k_mean_db": 7.0,
+        "inf_k_std_db": 8.0
+      },
+      "nlos": {
+        "count": 166,
+        "ds_median_ns": 11.173555850982666,
+        "ds_lg_mean": -7.954138151943415,
+        "ds_lg_std": 0.03527805394659016,
+        "inf_ds_median_ns": 27.957010217297864,
+        "inf_ds_lg_mean": -7.553509274827517,
+        "inf_ds_lg_std": 0.19,
+        "ple": 2.2735698630339396,
+        "inf_ple": 2.55
+      }
+    }
+  }
+}

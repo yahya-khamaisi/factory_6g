@@ -1,0 +1,130 @@
+{
+  "format_version": 1,
+  "created_at_utc": "2026-11-09T15:05:10.138953+00:00",
+  "config_sha256": "630b777048b158984df31143e137b81d3faa7ee7b4631452d0933cf6873a48e5",
+  "hall": {
+    "room_dimensions": [
+      15.0,
+      15.0,
+      5.0
+    ],
+    "machines": [
+      {
+        "x": 2.1710483196530026,
+        "y": -4.464049173235855,
+        "z": 0.0,
+        "sx": 1.660934072833945,
+        "sy": 1.1583176596280784,
+        "sz": 1.3585979199113825
+      },
+      {
+        "x": -4.090750040568995,
+        "y": -0.5457546831487612,
+        "z": 0.0,
+        "sx": 1.963433527455134,
+        "sy": 1.6417095529855295,
+        "sz": 1.2860643052769538
+      },
+      {
+        "x": 3.55037774597913,
+        "y": -0.6224438128993572,
+        "z": 0.0,
+        "sx": 1.056197036348872,
+        "sy": 1.8901474832729028,
+        "sz": 1.1438651200806644
+      },
+      {
+        "x": 3.6039428919184022,
+        "y": 1.4483083903427136,
+        "z": 0.0,
+        "sx": 0.8408580826771653,
+        "sy": 1.3318771805237521,
+        "sz": 0.5638172561041753
+      },
+      {
+        "x": 4.324332334544174,
+        "y": 3.0622184678113804,
+        "z": 0.0,
+        "sx": 1.6371316101280606,
+        "sy": 1.0317889521948025,
+        "sz": 1.4706980243949033
+      }
+    ],
+    "wall_thickness": 0.2,
+    "metal": {
+      "name": "factory_metal",
+      "relative_permittivity": 1.0,
+      "conductivity": 10000000.0
+    },
+    "concrete": {
+      "name": "factory_concrete",
+      "relative_permittivity": 7.0,
+      "conductivity": 0.1
+    },
+    "carrier_frequency": 3500000000.0,
+    "num_bs_ant": 8,
+    "bs_position": [
+      0.0,
+      0.0,
+      4.0
+    ],
+    "bs_array": "1x4 cross-polarised, facing floor",
+    "ut_height": 1.0,
+    "antenna_spacing": 0.5,
+    "bs_pattern": "tr38901",
+    "ut_pattern": "iso",
+    "ut_polarization": "V"
+  },
+  "layout_seed": 42,
+  "position_seed": 2026,
+  "split": {
+    "method": "checkerboard",
+    "cell_m": 1.5,
+    "guard_m": 0.25,
+    "min_train_eval_distance_m": 0.5
+  },
+  "ray_tracing": {
+    "max_depth": 5,
+    "samples_per_src": 10000,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false
+  },
+  "fft_size": 128,
+  "subcarrier_spacing": 30000.0,
+  "array_shape": "[N, num_bs_ant, fft_size] uplink CFR, delays normalised, not power-normalised",
+  "stats": {
+    "train": {
+      "count": 8192,
+      "trace_seconds": 326.0,
+      "los_fraction": 0.9937744140625,
+      "k_factor_db_median": 7.608555316925049,
+      "k_factor_db_p10_p90": [
+        5.6537275314331055,
+        10.625895500183105
+      ],
+      "rms_delay_spread_ns_median": 6.5005388259887695,
+      "rms_delay_spread_ns_p90": 8.915061950683594,
+      "num_paths_median": 202.0
+    },
+    "eval": {
+      "count": 4096,
+      "trace_seconds": 142.0,
+      "los_fraction": 0.95947265625,
+      "k_factor_db_median": 7.491450309753418,
+      "k_factor_db_p10_p90": [
+        5.336811542510986,
+        10.034646987915039
+      ],
+      "rms_delay_spread_ns_median": 6.5749664306640625,
+      "rms_delay_spread_ns_p90": 9.317512512207031,
+      "num_paths_median": 202.0
+    }
+  },
+  "tracer": {
+    "sionna.rt": "2.2.0",
+    "mitsuba": "3.9.1",
+    "drjit": "1.5.0"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "bank": "data/rt_channel_bank.npz",
+  "volume_to_surface_m": 1.5,
+  "splits": {
+    "train": {
+      "los_fraction": 0.9937744140625,
+      "los": {
+        "count": 8141,
+        "ds_median_ns": 5.150265216827393,
+        "ds_lg_mean": -8.314317567662973,
+        "ds_lg_std": 0.16122590947594015,
+        "inf_ds_median_ns": 23.67423038400107,
+        "inf_ds_lg_mean": -7.6257241303992105,
+        "inf_ds_lg_std": 0.15,
+        "ple": 5.183334844947804,
+        "inf_ple": 2.15,
+        "k_median_db": 7.613361358642578,
+        "k_mean_db": 7.7093867439849415,
+        "k_std_db": 1.3183322530883657,
+        "inf_k_mean_db": 7.0,
+        "inf_k_std_db": 8.0
+      },
+      "nlos": {
+        "count": 51,
+        "ds_median_ns": 12.362170219421387,
+        "ds_lg_mean": -7.923352131219145,
+        "ds_lg_std": 0.05295499268129782,
+        "inf_ds_median_ns": 27.957010217297864,
+        "inf_ds_lg_mean": -7.553509274827517,
+        "inf_ds_lg_std": 0.19,
+        "ple": -1.7716351827243495,
+        "inf_ple": 2.55
+      }
+    },
+    "eval": {
+      "los_fraction": 0.95947265625,
+      "los": {
+        "count": 3930,
+        "ds_median_ns": 5.189503908157349,
+        "ds_lg_mean": -8.317247645122182,
+        "ds_lg_std": 0.1612859260158356,
+        "inf_ds_median_ns": 23.67423038400107,
+        "inf_ds_lg_mean": -7.6257241303992105,
+        "inf_ds_lg_std": 0.15,
+        "ple": 5.198735574404584,
+        "inf_ple": 2.15,
+        "k_median_db": 7.63350248336792,
+        "k_mean_db": 7.756355735667182,
+        "k_std_db": 1.232458483734533,
+        "inf_k_mean_db": 7.0,
+        "inf_k_std_db": 8.0
+      },
+      "nlos": {
+        "count": 166,
+        "ds_median_ns": 11.909650325775146,
+        "ds_lg_mean": -7.921363383129905,
+        "ds_lg_std": 0.08175505326867445,
+        "inf_ds_median_ns": 27.957010217297864,
+        "inf_ds_lg_mean": -7.553509274827517,
+        "inf_ds_lg_std": 0.19,
+        "ple": 5.205563499082522,
+        "inf_ple": 2.55
+      }
+    }
+  }
+}

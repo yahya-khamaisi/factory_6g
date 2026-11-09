@@ -1,0 +1,88 @@
+{
+  "v1": "data/rt_channel_bank.npz",
+  "v2": "data/rt_channel_bank_v2.npz",
+  "v1_tracer": "sionna-rt 1.2.1 (not recorded)",
+  "v2_tracer": {
+    "sionna.rt": "2.2.0",
+    "mitsuba": "3.9.1",
+    "drjit": "1.5.0"
+  },
+  "ray_tracing_v1": {
+    "max_depth": 5,
+    "samples_per_src": 10000,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false
+  },
+  "ray_tracing_v2": {
+    "max_depth": 5,
+    "samples_per_src": 10000,
+    "los": true,
+    "specular_reflection": true,
+    "diffuse_reflection": false,
+    "refraction": false
+  },
+  "splits": {
+    "train": {
+      "same_positions": true,
+      "count": 8192,
+      "gain_change_db_p5_p50_p95": [
+        -3.0446581840515137,
+        -0.026440661400556564,
+        3.203233480453491
+      ],
+      "gain_change_abs_gt_1db_fraction": 0.472900390625,
+      "cfr_correlation_p5_p50_p95": [
+        0.8319293260574341,
+        0.9723590612411499,
+        0.9977020621299744
+      ],
+      "k_change_db_p5_p50_p95": [
+        -0.7986083030700684,
+        -0.0974419116973877,
+        3.146419072151184
+      ],
+      "ds_change_ns_p5_p50_p95": [
+        0.2906513333320618,
+        1.184476375579834,
+        1.6511480331420898
+      ],
+      "los_flag_agreement": 1.0,
+      "los_fraction_v1": 0.9937744140625,
+      "los_fraction_v2": 0.9937744140625,
+      "num_paths_median_v1": 202.0,
+      "num_paths_median_v2": 202.0
+    },
+    "eval": {
+      "same_positions": true,
+      "count": 4096,
+      "gain_change_db_p5_p50_p95": [
+        -3.0976579189300537,
+        -0.05945241078734398,
+        3.030141592025757
+      ],
+      "gain_change_abs_gt_1db_fraction": 0.456787109375,
+      "cfr_correlation_p5_p50_p95": [
+        0.7870401740074158,
+        0.9728370308876038,
+        0.9977847933769226
+      ],
+      "k_change_db_p5_p50_p95": [
+        -0.8514662384986877,
+        -0.2014601230621338,
+        2.5279084369540215
+      ],
+      "ds_change_ns_p5_p50_p95": [
+        0.25261253118515015,
+        1.1518898010253906,
+        1.5386942625045776
+      ],
+      "los_flag_agreement": 1.0,
+      "los_fraction_v1": 0.95947265625,
+      "los_fraction_v2": 0.95947265625,
+      "num_paths_median_v1": 202.0,
+      "num_paths_median_v2": 202.0
+    }
+  }
+}
