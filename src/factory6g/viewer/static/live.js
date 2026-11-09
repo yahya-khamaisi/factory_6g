@@ -165,7 +165,7 @@ function logChart(series, { width = 640, height = 240, xs = null, xlabel = 'Eb/N
   return svg;
 }
 function lineChart(values, { width = 560, height = 220, ylabel = '', xlabel = 'iteration', color = 'var(--brand)', yfmt = (v) => v.toFixed(2), log = false } = {}) {
-  const pad = { l: 56, r: 14, t: 10, b: 40 };
+  const pad = { l: log ? 70 : 56, r: 14, t: 10, b: 40 };  // sci tick labels are wider
   const v = values.map((x) => (Number.isFinite(x) && (!log || x > 0) ? (log ? Math.log10(x) : x) : null));
   const ok = v.filter((x) => x !== null);
   const svg = s('svg', { viewBox: `0 0 ${width} ${height}`, class: 'chart', role: 'img', 'aria-label': `${ylabel} per ${xlabel}` });
@@ -369,17 +369,16 @@ function runRow(run) {
       h('div', { class: 't' }, runTitle(run)),
       h('div', { class: 'chips' }, statusChip(run), chip(stackName(run.framework.key), run.framework.key)),
       progressBar(run),
-      h('dl', { class: 'facts' },
-        h('dt', {}, 'Started'), h('dd', {}, startedAt(run)),
-        h('dt', {}, 'Time per batch'), h('dd', {}, p?.seconds_per_batch ? `${p.seconds_per_batch.toFixed(1)} s` : '–'),
-        h('dt', {}, 'Time left'), h('dd', {}, p ? dur(p.eta_s) : (run.status === 'stopped' ? `stopped ${dur(run.age_s)} ago` : '–')),
-        h('dt', {}, 'Eb/N0 points open'), h('dd', {}, open !== null ? `${open} of ${st.ebno_db.length}` : '–'),
-        h('dt', {}, 'Folder'), h('dd', {}, run.root))),
+      kv([
+        ['Started', startedAt(run)],
+        ['Time per batch', p?.seconds_per_batch ? `${p.seconds_per_batch.toFixed(1)} s` : '–'],
+        ['Time left', p ? dur(p.eta_s) : (run.status === 'stopped' ? `stopped ${dur(run.age_s)} ago` : '–')],
+        ['Eb/N0 points open', open !== null ? `${open} of ${st.ebno_db.length}` : '–'],
+        ['Folder', run.root]])),
     h('div', { class: 'run-plot' }, logChart(series, { width: 520, height: 210, xs: st.ebno_db }), legendOf(series)),
     h('div', { class: 'run-now' },
-      h('div', { class: 'h' }, `BER at ${ref} dB, best first`),
-      now.map(({ m, b }) => h('div', { class: 'm' }, h('i', { style: { background: methodColor(st.methods, m) } }), h('span', {}, m),
-        h('b', {}, b ? (b.bound ? `< ${sci(b.y)}` : sci(b.y)) : '–')))));
+      h('div', { class: 'h' }, h('span', {}, 'Method'), h('span', {}, `BER at ${ref} dB`)),
+      kv(now.map(({ m, b }) => [[h('i', { class: 'swatch', style: { background: methodColor(st.methods, m) } }), m], berValue(b)]), 'compact')));
 }
 function runTile(run) {
   const st = run.stages[0];
@@ -423,7 +422,7 @@ function renderRun(first) {
         h('div', { class: 'seg', role: 'group', 'aria-label': 'Eb/N0 point' }, st.ebno_db.map((eb) =>
           h('button', { type: 'button', 'aria-pressed': eb === S.detail.eb ? 'true' : 'false', onclick: () => { S.detail.eb = eb; S.detail.convKey = null; S.detail.conv = null; renderRun(false); } }, `${eb}`))),
         h('div', { id: 'conv-box' }, convChart(st)))),
-    h('div', { class: 'panel' }, h('h3', {}, 'BER table', h('small', {}, 'bold: resolved (≥ 30 bit errors) · hover a cell for counts')), berTable(st))));
+    h('div', { class: 'panel' }, h('h3', {}, 'BER table', h('small', {}, 'one row per method, one column per Eb/N0 point')), berTable(st))));
   loadConvergence(run, st);
 }
 async function loadConvergence(run, st) {
@@ -448,16 +447,70 @@ function convChart(st) {
 function berTable(st) {
   const by = {};
   for (const c of st.cells) (by[c.method] ??= {})[c.ebno_db] = c;
-  return h('div', { class: 'table-wrap' }, h('table', {},
-    h('thead', {}, h('tr', {}, h('th', {}, 'Method'), st.ebno_db.map((eb) => h('th', {}, `${eb} dB`)))),
-    h('tbody', {}, st.methods.map((m) => h('tr', {},
-      h('td', {}, h('span', { class: 'swatch', style: { background: methodColor(st.methods, m), marginRight: '6px' } }), m),
-      st.ebno_db.map((eb) => {
-        const b = cellBer(by[m]?.[eb]);
-        if (!b) return h('td', {}, '–');
-        return h('td', { title: `${intFmt(b.c.bit_errors)} bit errors / ${intFmt(b.c.bits)} bits, ${b.c.batches} batches` },
-          b.bound ? `< ${sci(b.y)}` : b.resolved ? h('strong', {}, sci(b.y)) : sci(b.y));
-      }))))));
+  return berGrid({ id: 'run-ber', head: 'Method', xs: st.ebno_db,
+    rows: st.methods.map((m) => ({ name: m, label: [h('i', { class: 'swatch', style: { background: methodColor(st.methods, m) } }), m],
+      at: (eb) => cellBer(by[m]?.[eb]) })) });
+}
+
+// ---------- labelled values ----------
+// Label/value list: each pair on one line, label left, value right, joined by a dotted leader.
+const kv = (pairs, cls = '') => h('dl', { class: `kv ${cls}` }, pairs.map(([k, v]) => h('div', {}, h('dt', {}, k), h('dd', {}, v))));
+// One BER estimate, styled by how much it can be trusted.
+function berValue(b) {
+  if (!b) return h('span', { class: 'ber none', title: 'not simulated yet' }, '–');
+  if (b.bound) return h('span', { class: 'ber bound' }, `< ${sci(b.y)}`);
+  return h('span', { class: `ber${b.resolved ? ' resolved' : ''}` }, sci(b.y));
+}
+function berDetail(b) {
+  if (!b) return 'not simulated yet';
+  const n = b.c.batches;
+  const counts = `${intFmt(b.c.bit_errors)} bit errors in ${intFmt(b.c.bits)} bits over ${n} batch${n === 1 ? '' : 'es'}`;
+  if (b.bound) return `no bit errors yet, so BER < ${sci(b.y)} (95 % upper bound) · ${counts}`;
+  return `BER ${sci(b.y, 2)}${b.resolved ? '' : ' (fewer than 30 errors: indicative)'} · ${counts}`;
+}
+const berKey = () => h('div', { class: 'key' },
+  h('span', {}, berValue({ y: 1.2e-3, resolved: true }), 'resolved: 30 or more bit errors'),
+  h('span', {}, berValue({ y: 2.7e-5, resolved: false }), 'fewer than 30 errors: indicative'),
+  h('span', {}, berValue({ y: 1.6e-5, bound: true }), 'no errors yet: 95 % upper bound'),
+  h('span', {}, berValue(null), 'not simulated'));
+const BER_HINT = 'Point at a value to read which row and Eb/N0 it belongs to, with its bit counts.';
+const gridHover = {};
+// A BER table: one row per method (or run), one column per Eb/N0 point under a shared
+// "BER at Eb/N0 (dB)" header. Pointing at a value highlights its row and column and spells
+// out the pair in a readout line; the highlight survives the live re-render.
+function berGrid({ id, head, extraHeads = [], xs, rows }) {
+  const readout = h('div', { class: 'readout', 'aria-hidden': 'true' }, BER_HINT);
+  const table = h('table', { class: 'data' },
+    h('thead', {},
+      h('tr', {}, h('th', { class: 'rh', rowspan: 2, scope: 'col' }, head),
+        extraHeads.map((t) => h('th', { class: 'rh', rowspan: 2, scope: 'col' }, t)),
+        h('th', { class: 'group', colspan: xs.length, scope: 'colgroup' }, 'BER at Eb/N0 (dB)')),
+      h('tr', {}, xs.map((eb, j) => h('th', { class: 'num', scope: 'col', 'data-col': j, 'aria-label': `${eb} dB` }, String(eb))))),
+    h('tbody', {}, rows.map((r, i) => h('tr', { 'data-row': i },
+      h('th', { scope: 'row' }, h('span', { class: 'rl' }, r.label)),
+      (r.extra || []).map((x) => h('td', {}, x)),
+      xs.map((eb, j) => {
+        const b = r.at(eb), detail = berDetail(b);
+        return h('td', { class: 'num', 'data-col': j, 'data-name': r.name, 'data-eb': eb, 'data-detail': detail, title: `${r.name} at ${eb} dB: ${detail}` }, berValue(b));
+      })))));
+  const show = (td) => {
+    table.querySelectorAll('.col-hi, .cell-hi, .row-hi').forEach((e) => e.classList.remove('col-hi', 'cell-hi', 'row-hi'));
+    if (!td) { readout.replaceChildren(BER_HINT); readout.classList.remove('on'); return; }
+    table.querySelectorAll(`[data-col="${td.dataset.col}"]`).forEach((x) => x.classList.add('col-hi'));
+    td.parentElement.classList.add('row-hi');
+    td.classList.add('cell-hi');
+    readout.replaceChildren(h('b', {}, td.dataset.name), ' at ', h('b', {}, `${td.dataset.eb} dB`), ' → ', td.dataset.detail);
+    readout.classList.add('on');
+  };
+  table.addEventListener('mouseover', (e) => {
+    const td = e.target.closest('td[data-col]');
+    gridHover[id] = td ? { row: td.parentElement.dataset.row, col: td.dataset.col } : null;
+    show(td);
+  });
+  table.addEventListener('mouseleave', () => { gridHover[id] = null; show(null); });
+  const hv = gridHover[id];
+  if (hv) show(table.querySelector(`tr[data-row="${hv.row}"] td[data-col="${hv.col}"]`));
+  return h('div', { class: 'table-block' }, readout, h('div', { class: 'table-wrap' }, table), berKey());
 }
 
 // ---------- page: factory hall ----------
@@ -549,13 +602,13 @@ function utStrip(sc) {
     const sched = P?.scheduled?.[i] ?? 0, blocks = P?.blocks?.[i] ?? 0, errs = P?.block_errors?.[i] ?? 0;
     return h('div', { class: 'ut-card' },
       h('div', { class: 'top' }, h('i', { class: 'swatch', style: { background: utColor(i) } }), `UT${i}`, chip(o === 'idle' ? 'not scheduled' : o, o)),
-      h('dl', {},
-        h('dt', {}, 'Position'), h('dd', {}, `${p[0].toFixed(1)}, ${p[1].toFixed(1)} m`),
-        h('dt', {}, 'Path'), h('dd', {}, d.los?.[i] === false ? 'no line of sight' : 'line of sight'),
-        h('dt', {}, 'Large-scale gain'), h('dd', {}, d.gain_db ? `${d.gain_db[i] >= 0 ? '+' : ''}${d.gain_db[i].toFixed(1)} dB` : '–'),
-        h('dt', {}, 'Power'), h('dd', {}, L?.active?.[i] ? `${Math.round(100 * (L.power?.[i] ?? 1))} %` : '–'),
-        h('dt', {}, 'Scheduled so far'), h('dd', {}, batches ? `${sched} of ${batches} batches` : '–'),
-        h('dt', {}, 'Block error rate'), h('dd', {}, blocks ? sci(errs / blocks) : '–')));
+      kv([
+        ['Position x, y', `${p[0].toFixed(1)} m, ${p[1].toFixed(1)} m`],
+        ['Path', d.los?.[i] === false ? 'no line of sight' : 'line of sight'],
+        ['Large-scale gain', d.gain_db ? `${d.gain_db[i] >= 0 ? '+' : ''}${d.gain_db[i].toFixed(1)} dB` : '–'],
+        ['Transmit power', L?.active?.[i] ? `${Math.round(100 * (L.power?.[i] ?? 1))} %` : '–'],
+        ['Scheduled so far', batches ? `${sched} of ${batches} batches` : '–'],
+        ['Block error rate', blocks ? sci(errs / blocks) : '–']]));
   }));
 }
 function plan2d(sc, { size = 560 } = {}) {
@@ -725,23 +778,25 @@ function renderCompare(first) {
   $('page').replaceChildren(...(rows.length ? [
     h('div', { class: 'panel' }, h('h3', {}, `${S.ov.method} · ${STAGE_LABEL[S.ov.stage] || S.ov.stage}`, h('small', {}, `${rows.length} runs · live runs update as they go`)),
       logChart(rows.map((x) => x.se), { width: 1100, height: 340, xs }), legendOf(rows.map((x) => x.se))),
-    h('div', { class: 'panel' }, h('h3', {}, 'BER per run', h('small', {}, 'bold: resolved (≥ 30 bit errors)')),
-      h('div', { class: 'table-wrap' }, h('table', {},
-        h('thead', {}, h('tr', {}, h('th', {}, 'Run'), h('th', {}, 'Status'), xs.map((eb) => h('th', {}, `${eb} dB`)))),
-        h('tbody', {}, rows.map(({ r, se }) => h('tr', {},
-          h('td', {}, h('span', { class: 'swatch', style: { background: se.color, marginRight: '6px' } }), h('a', { href: runHref(r) }, se.label)),
-          h('td', {}, statusChip(r)),
-          xs.map((eb) => { const p = se.points.find((q) => q.x === eb); return h('td', {}, !p ? '–' : p.bound ? `< ${sci(p.y)}` : p.resolved ? h('strong', {}, sci(p.y)) : sci(p.y)); }))))))),
+    h('div', { class: 'panel' }, h('h3', {}, `BER per run · ${S.ov.method}`, h('small', {}, 'one row per run, one column per Eb/N0 point')),
+      berGrid({ id: 'compare-ber', head: 'Run', extraHeads: ['Status'], xs,
+        rows: rows.map(({ r, se }) => ({ name: se.label, label: [h('i', { class: 'swatch', style: { background: se.color } }), h('a', { href: runHref(r) }, se.label)],
+          extra: [statusChip(r)], at: (eb) => se.points.find((q) => q.x === eb) || null })) })),
   ] : [h('p', { class: 'empty-state' }, 'No run has this method yet.')]));
 }
 
 // ---------- page: training ----------
-function bars(obj, fmt, cap = null) {
+// Bar list with a header row naming both columns; each row highlights as a unit on hover.
+function bars(obj, fmt, { cap = null, value = 'Value' } = {}) {
   if (!obj) return null;
   const entries = Object.entries(obj).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
   const mx = Math.max(...entries.map((e) => e[1]), 1e-12);
-  return h('div', { class: 'bars' }, entries.flatMap(([k, v]) => [h('span', {}, `${k} dB`),
-    h('div', { class: `b${cap !== null && v >= cap ? ' cap' : ''}`, style: { width: `${(100 * v / mx).toFixed(1)}%` } }), h('span', {}, fmt(v))]));
+  return h('div', { class: 'bars', role: 'table', 'aria-label': `${value} per Eb/N0` },
+    h('div', { class: 'bar-row head', role: 'row' }, h('span', { role: 'columnheader' }, 'Eb/N0'), h('span', { 'aria-hidden': 'true' }), h('span', { role: 'columnheader' }, value)),
+    entries.map(([k, v]) => h('div', { class: `bar-row${cap !== null && v >= cap ? ' at-cap' : ''}`, role: 'row' },
+      h('span', { role: 'rowheader' }, `${k} dB`),
+      h('span', { class: 'bt', 'aria-hidden': 'true' }, h('i', { style: { width: `${(100 * v / mx).toFixed(1)}%` } })),
+      h('span', { role: 'cell' }, fmt(v)))));
 }
 function renderTraining() {
   const list = training();
@@ -757,8 +812,8 @@ function renderTraining() {
       h('div', { class: 'panel' }, h('h3', {}, 'Mean step reward'), lineChart(t.reward, { ylabel: 'reward' })),
       h('div', { class: 'panel' }, h('h3', {}, 'Rollout BER'), lineChart(t.ber, { ylabel: 'BER', color: '#cc6677', log: true }))),
     h('div', { class: 'two-col' }, ...kids(
-      t.bler_by_ebno ? h('div', { class: 'panel' }, h('h3', {}, 'Latest rollout BLER per Eb/N0', h('small', {}, 'target 1 %')), bars(t.bler_by_ebno, (v) => sci(v))) : null,
-      t.lagrange ? h('div', { class: 'panel' }, h('h3', {}, 'Lagrange multipliers', h('small', {}, 'red: at the cap of 10, so the 1 % target is out of reach there')), bars(t.lagrange, (v) => v.toFixed(2), 10)) : null))))
+      t.bler_by_ebno ? h('div', { class: 'panel' }, h('h3', {}, 'Latest rollout BLER per Eb/N0', h('small', {}, 'target 1 %')), bars(t.bler_by_ebno, (v) => sci(v), { value: 'BLER' })) : null,
+      t.lagrange ? h('div', { class: 'panel' }, h('h3', {}, 'Lagrange multipliers', h('small', {}, 'red: at the cap of 10, so the 1 % target is out of reach there')), bars(t.lagrange, (v) => v.toFixed(2), { cap: 10, value: 'Multiplier λ' })) : null))))
     : [h('p', { class: 'empty-state' }, 'No training logs in the watched folders.')]));
 }
 
