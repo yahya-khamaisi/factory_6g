@@ -11,6 +11,16 @@ inflated for both stacks. Both images are native arm64.
 | TensorFlow, Sionna 1.2.1 (Phase 1 seeds 42–46) | 1 h 30 min – 1 h 57 min |
 | PyTorch, Sionna 2.2, seed 42, 10 threads, eager decoder | 7 h 06 min |
 
+| Run B (schedulers, Rayleigh, 200 batches) | Wall clock |
+|:--|--:|
+| TensorFlow, Sionna 1.2.1 (Phase 1 seeds 42–46) | 1 h 15 min – 2 h 15 min |
+| PyTorch, Sionna 2.2, seed 42, 4 threads, compiled decoder | 1 h 33 min |
+
+Run B finishes inside the TensorFlow range because points stop early once
+they reach the error target and the schedulers carry no neural estimator.
+The fastest TensorFlow seed (46, 1 h 15 min) ran mostly alone; the others
+shared the machine with the Run C lane and the PyTorch gates.
+
 ## Per batch (Run C config, 55 method × Eb/N0 points)
 
 | Setting | Seconds per batch |
